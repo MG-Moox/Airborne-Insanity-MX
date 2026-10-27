@@ -492,6 +492,41 @@ button:focus-visible,input:focus-visible{outline-color:var(--accent)}
 ::selection{background:rgba(198,255,40,.35);color:#fff}
 @media(max-width:720px){.map-card{height:170px}.panel,.map-card{backdrop-filter:blur(8px)}.primary,.btn.primary,.btn.primary.big,.btn.gold.big{min-height:44px}}
 /* ================= END CINEMATIC 2026 MX VISUAL PASS ================= */
+
+/* ===== MAJOR HOME SCREEN REWORK: SUMMIT FESTIVAL ===== */
+#s-home{position:relative;isolation:isolate;background:
+ radial-gradient(ellipse at 70% 18%,rgba(126,194,220,.28),transparent 28%),
+ linear-gradient(180deg,rgba(8,15,19,.08) 0%,rgba(7,13,17,.45) 45%,rgba(5,10,13,.96) 100%),
+ repeating-linear-gradient(115deg,transparent 0 120px,rgba(190,255,65,.035) 121px 123px),
+ linear-gradient(145deg,#456f78 0%,#263f43 27%,#182d2d 48%,#0b1519 76%,#071014 100%);
+}
+#s-home:before{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;opacity:.9;background:
+ linear-gradient(155deg,transparent 0 24%,rgba(226,240,231,.72) 24.2%,rgba(226,240,231,.72) 25%,transparent 25.3%),
+ linear-gradient(202deg,transparent 0 20%,rgba(236,246,242,.58) 20.2%,rgba(236,246,242,.58) 21%,transparent 21.3%),
+ linear-gradient(145deg,transparent 0 34%,rgba(18,48,43,.85) 34.2%,rgba(18,48,43,.85) 42%,transparent 42.2%),
+ linear-gradient(35deg,transparent 0 46%,rgba(41,81,65,.8) 46.2%,rgba(41,81,65,.8) 56%,transparent 56.2%);
+clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
+#s-home:after{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;background:radial-gradient(ellipse at 62% 70%,rgba(197,255,39,.14),transparent 34%),linear-gradient(90deg,rgba(4,9,12,.72),transparent 50%,rgba(4,9,12,.18))}
+#s-home .home-left{padding:clamp(20px,3vw,48px);background:linear-gradient(90deg,rgba(5,10,13,.86),rgba(5,10,13,.38) 78%,transparent);border:1px solid rgba(198,255,40,.17);border-radius:18px;backdrop-filter:blur(7px);box-shadow:0 20px 65px rgba(0,0,0,.22)}
+#s-home .hero-title h1{font-size:clamp(54px,7vw,100px);line-height:.79;letter-spacing:-.015em;text-shadow:0 8px 35px rgba(0,0,0,.65)}
+#s-home .hero-title h1 span{display:block}
+#s-home .hero-title h1 em{color:#c6ff28;text-shadow:0 0 28px rgba(198,255,40,.22)}
+#s-home .menu{gap:8px;margin-top:28px}
+#s-home .menu button{min-height:54px;padding:13px 18px;border:1px solid rgba(235,247,241,.12);border-radius:7px;background:linear-gradient(100deg,rgba(16,28,33,.96),rgba(12,20,24,.65));font-family:var(--f-cond);font-size:21px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;box-shadow:0 8px 18px rgba(0,0,0,.18);transition:transform .18s,border-color .18s,background .18s}
+#s-home .menu button:hover{transform:translateX(5px);border-color:rgba(198,255,40,.55);background:linear-gradient(100deg,rgba(36,54,43,.98),rgba(12,20,24,.85))}
+#s-home .menu button.primary{background:linear-gradient(105deg,#d5ff56,#a7e51b);color:#10170a;border-color:#efffb5;box-shadow:0 10px 30px rgba(176,240,35,.2)}
+#s-home .menu button i{font-style:normal;font-size:11px;letter-spacing:.16em;opacity:.76}
+#s-home .panel{background:linear-gradient(145deg,rgba(10,19,23,.94),rgba(8,14,17,.88));border-color:rgba(198,255,40,.25);border-radius:12px;backdrop-filter:blur(12px)}
+#s-home .panel h3{color:#c6ff28;letter-spacing:.2em}
+#s-home .tag{background:#c6ff28;color:#10170a;border:0}
+#s-home .rider-card{align-self:end}
+#s-home .rc-stats b{color:#c6ff28}
+#s-play .map-card{height:235px;border-radius:12px;background:linear-gradient(145deg,#416d72,#142c2d 54%,#10191b);border-color:rgba(220,245,235,.22);box-shadow:0 15px 35px rgba(0,0,0,.34)}
+#s-play .map-card .meta{background:linear-gradient(180deg,rgba(3,9,12,.9),rgba(3,9,12,.3),transparent);padding:18px}
+#s-play .map-card .meta b{font-size:32px;color:#f4f8f2}
+#s-play .map-card .meta span{color:#d3e4d9}
+#s-play .map-card.on{border-color:#c6ff28;box-shadow:0 0 0 2px rgba(198,255,40,.45),0 18px 38px rgba(0,0,0,.4)}
+/* ===== END MAJOR HOME SCREEN REWORK ===== */
 </style>
 </head>
 <body>
