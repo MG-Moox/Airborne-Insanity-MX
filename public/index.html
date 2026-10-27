@@ -466,6 +466,32 @@ body{background:#070b10}
 input,select{accent-color:#b8ff35}::selection{background:rgba(184,255,53,.35);color:#fff}
 @media(max-width:720px){.panel,.map-card{backdrop-filter:blur(8px)}.primary,.btn.primary,.btn.primary.big,.btn.gold.big{min-height:44px}}
 /* ================= END VISUAL POLISH UPDATE ================= */
+
+/* ================= CINEMATIC 2026 MX VISUAL PASS ================= */
+:root{--bg:#080d12;--panel:#101820;--panel2:#17232c;--panel3:#20303a;--line:#2b4149;--line2:#49616a;--text:#f3f7f5;--mute:#a4b5b8;--dim:#65777b;--accent:#c6ff28;--accent-2:#e1ff70;--cyan:#55e8ff;--good:#65ffad}
+#splash{background:linear-gradient(115deg,rgba(4,9,12,.9),rgba(6,12,16,.44)),radial-gradient(ellipse at 70% 30%,rgba(51,102,95,.35),transparent 48%),linear-gradient(180deg,#6ca2b4 0%,#253f43 38%,#0a1115 100%)}
+#splash:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 45%,rgba(3,8,10,.9)),repeating-linear-gradient(120deg,transparent 0 80px,rgba(255,255,255,.018) 81px 82px)}
+#splash .inner{position:relative;z-index:1;text-shadow:0 6px 32px rgba(0,0,0,.45)}
+#splash .eyebrow,.eyebrow{color:var(--accent)}
+#splash h1 em{color:var(--accent);filter:drop-shadow(0 0 22px rgba(198,255,40,.2))}
+#splash .load i{background:var(--accent)}
+.panel,.panel.news,.panel.rider-card,.panel.gp,.panel.set-wrap,.panel.card{border-color:rgba(198,255,40,.18);background:linear-gradient(145deg,rgba(19,30,36,.97),rgba(8,14,18,.97));box-shadow:0 16px 42px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.04)}
+.topbar,.nav,.bottombar{background:linear-gradient(180deg,rgba(7,13,17,.96),rgba(7,13,17,.82));border-color:rgba(255,255,255,.1);backdrop-filter:blur(14px)}
+.primary,.btn.primary,.btn.primary.big,.btn.gold.big{background:linear-gradient(110deg,#dcff70,#b5f51f);color:#10160b;border:1px solid rgba(255,255,255,.36);box-shadow:0 8px 25px rgba(174,240,34,.2);transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
+.primary:hover,.btn.primary:hover,.btn.gold.big:hover{transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 12px 30px rgba(174,240,34,.28)}
+.map-card{height:205px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:linear-gradient(145deg,#233b40,#0c151a);box-shadow:0 10px 25px rgba(0,0,0,.24);overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
+.map-card:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(198,255,40,.10),transparent 35%,transparent 70%,rgba(85,232,255,.08))}
+.map-card:hover{transform:translateY(-4px) scale(1.008);border-color:var(--accent);box-shadow:0 16px 35px rgba(0,0,0,.38),0 0 0 1px rgba(198,255,40,.15)}
+.map-card.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(198,255,40,.4),0 15px 40px rgba(0,0,0,.5)}
+.map-card .meta{background:linear-gradient(180deg,rgba(3,9,12,.84),rgba(3,9,12,.25),transparent);padding:16px 18px}
+.map-card .meta b{font-size:30px;letter-spacing:.055em}
+.map-card .meta span{color:#d6e4df;letter-spacing:.24em}
+.map-card canvas{filter:saturate(1.35) contrast(1.08) brightness(.86)}
+.chip,.coin,.tag,.tg{border-color:rgba(198,255,40,.22)}
+button:focus-visible,input:focus-visible{outline-color:var(--accent)}
+::selection{background:rgba(198,255,40,.35);color:#fff}
+@media(max-width:720px){.map-card{height:170px}.panel,.map-card{backdrop-filter:blur(8px)}.primary,.btn.primary,.btn.primary.big,.btn.gold.big{min-height:44px}}
+/* ================= END CINEMATIC 2026 MX VISUAL PASS ================= */
 </style>
 </head>
 <body>
@@ -750,8 +776,8 @@ const TAU = Math.PI * 2;
 const BIKE = {
   m: 230, I: 95, R: 0.33, Iw: 1.1,
   travel: 0.30, k: 17000, kp: 420000, kb: 320000, cC: 2300, cR: 3400,
-  Tmax: 650, P: 59000, VMAX: 39, muR: 1.34, muF: 1.18,
-  brR: 445, brF: 675, gyro: 2.65, airTq: 900, gndTq: 680,
+  Tmax: 670, P: 61000, VMAX: 40, muR: 1.36, muF: 1.20,
+  brR: 455, brF: 690, gyro: 2.7, airTq: 920, gndTq: 700,
   rear:  { x: -0.70, y: -0.42, ux: 0.12,  uy: 0.993 },
   front: { x: 0.74,  y: -0.42, ux: -0.42, uy: 0.907 },
 };
