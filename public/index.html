@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airborne Insanity MX</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #090b12;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    canvas { display: block; }
+    #hud {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      padding: 14px 18px;
+      background: #111b;
+      border: 1px solid #a855f7;
+      border-radius: 12px;
+      box-shadow: 0 0 20px #a855f744;
+    }
+    #speed { font-size: 28px; font-weight: bold; color: #b7ff38; }
+    #help { color: #ccc; font-size: 12px; margin-top: 8px; }
+    #message {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      text-align: center;
+    }
+    #message h1 {
+      font-size: clamp(30px, 7vw, 70px);
+      font-style: italic;
+      text-shadow: 0 0 25px #a855f7;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div>AIRBORNE INSANITY MX</div>
+    <div id="speed">0 KM/H</div>
+    <div id="help">WASD / ARROWS TO RIDE · SPACE TO JUMP</div>
+  </div>
+
+  <div id="message">
+    <h1>GET READY<br><small>RIDE YOUR WAY</small></h1>
+  </div>
+
+  <script type="module">
+    import * as THREE from
+      "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x101827);
+    scene.fog = new THREE.Fog(0x101827, 45, 180);
+
+    const camera = new THREE.PerspectiveCamera(
+      70, innerWidth / innerHeight, 0.1, 300
+    );
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xc4ddff, 0x49331e, 2));
+
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    sun.position.set(-15, 25, 10);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(300, 300),
+      new THREE.MeshStandardMaterial({ color: 0x554738, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.1;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Dirt track
+    const track = new THREE.Mesh(
+      new THREE.PlaneGeometry(18, 180),
+      new THREE.MeshStandardMaterial({ color: 0x8b765c })
+    );
+    track.rotation.x = -Math.PI / 2;
+    track.position.y = 0.01;
+    scene.add(track);
+
+    // Bike body
+    const bike = new THREE.Group();
+    scene.add(bike);
+
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.35, 1.25),
+      new THREE.MeshStandardMaterial({
+        color: 0xb7ff38, metalness: 0.3, roughness: 0.4
+      })
+    );
+    frame.position.y = 0.8;
+    frame.castShadow = true;
+    bike.add(frame);
+
+    const wheels = [];
+    for (const z of [-0.65, 0.65]) {
+      const wheel = new THREE.Mesh(
+        new THREE.TorusGeometry(0.38, 0.09, 10, 24),
+        new THREE.MeshStandardMaterial({ color: 0x171717 })
+      );
+      wheel.rotation.y = Math.PI / 2;
+      wheel.position.set(0, 0.42, z);
+      wheel.castShadow = true;
+      bike.add(wheel);
+      wheels.push(wheel);
+    }
+
+    // Ramps
+    for (let i = 0; i < 5; i++) {
+      const ramp = new THREE.Mesh(
+        new THREE.BoxGeometry(10, 1, 5),
+        new THREE.MeshStandardMaterial({ color: 0xa855f7 })
+      );
+      ramp.position.set(0, 0.25, -12 - i * 25);
+      ramp.rotation.x = -0.15;
+      ramp.castShadow = true;
+      scene.add(ramp);
+    }
+
+    const keys = {};
+    addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+    let speed = 0;
+    let verticalVelocity = 0;
+    let airborne = false;
+    let heading = 0;
+
+    camera.position.set(0, 4, 7);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.04);
+
+      if (keys.w || keys.arrowup) speed += 12 * dt;
+      else if (keys.s || keys.arrowdown) speed -= 15 * dt;
+      else speed *= Math.pow(0.985, dt * 60);
+
+      speed = THREE.MathUtils.clamp(speed, -8, 35);
+
+      if (keys.a || keys.arrowleft) heading += 1.5 * dt;
+      if (keys.d || keys.arrowright) heading -= 1.5 * dt;
+
+      bike.rotation.y = heading;
+      bike.position.x -= Math.sin(heading) * speed * dt;
+      bike.position.z -= Math.cos(heading) * speed * dt;
+
+      if (keys[" "] && !airborne) {
+        verticalVelocity = 8;
+        airborne = true;
+      }
+
+      verticalVelocity -= 18 * dt;
+      bike.position.y += verticalVelocity * dt;
+
+      if (bike.position.y < 0) {
+        bike.position.y = 0;
+        verticalVelocity = 0;
+        airborne = false;
+      }
+
+      for (const wheel of wheels) wheel.rotation.x += speed * dt;
+
+      const target = new THREE.Vector3(
+        bike.position.x + Math.sin(heading) * 5,
+        bike.position.y + 3.2,
+        bike.position.z + Math.cos(heading) * 7
+      );
+      camera.position.lerp(target, 1 - Math.exp(-4 * dt));
+      camera.lookAt(bike.position.x, bike.position.y + 0.8, bike.position.z);
+
+      document.getElementById("speed").textContent =
+        Math.round(Math.abs(speed) * 3.6) + " KM/H";
+
+      renderer.render(scene, camera);
+    }
+
+    const clock = new THREE.Clock();
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    animate();
+    setTimeout(() => {
+      document.getElementById("message").style.display = "none";
+    }, 2500);
+  </script>
+</body>
+</html>
