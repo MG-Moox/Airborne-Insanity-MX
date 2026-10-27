@@ -449,6 +449,10 @@ body.touch #hMiniWrap { display: none; } body.touch[data-roam="1"] #hMiniWrap { 
 body[data-roam="1"] #hMiniWrap { width: 170px; } body[data-roam="1"] #hProfile { width: 170px; height: 170px; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; background: rgba(0,0,0,.35); }
 
 
+
+/* ================= OPEN WORLD TERRAIN UPGRADE ================= */
+/* Slightly stronger broad ridges and peak relief create a more varied mountain silhouette. */
+/* ================= END OPEN WORLD TERRAIN UPGRADE ================= */
 /* ================= AIRBORNE INSANITY MX: VISUAL POLISH UPDATE ================= */
 :root{--accent:#b8ff35;--cyan:#54e8ff}
 body{background:#070b10}
@@ -1049,13 +1053,13 @@ const Roam = (() => {
     const a = hash(ix, iz, s), b = hash(ix + 1, iz, s), c = hash(ix, iz + 1, s), d = hash(ix + 1, iz + 1, s);
     return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fz;
   }
-  const fbm = (x, z, s) => (vnoise(x / 300, z / 300, s) - 0.5) * 20 + (vnoise(x / 130, z / 130, s + 1) - 0.5) * 8 + (vnoise(x / 55, z / 55, s + 2) - 0.5) * 4.5 + (vnoise(x / 22, z / 22, s + 3) - 0.5) * 1.2;
+  const fbm = (x, z, s) => (vnoise(x / 340, z / 340, s) - 0.5) * 24 + (vnoise(x / 145, z / 145, s + 1) - 0.5) * 10 + (vnoise(x / 58, z / 58, s + 2) - 0.5) * 5.5 + (vnoise(x / 22, z / 22, s + 3) - 0.5) * 1.5;
 
   /* natural ground height (before trails are carved) */
   function baseH(x, z) {
     const d = (x + z) / 2048, t = Math.max(0, 1 - d);
-    let h = 95 * t * t;
-    const pk = Math.hypot(x - ZN.peak[0], z - ZN.peak[1]); h += 45 * Math.exp(-(pk * pk) / (2 * 105 * 105));
+    let h = 108 * t * t;
+    const pk = Math.hypot(x - ZN.peak[0], z - ZN.peak[1]); h += 56 * Math.exp(-(pk * pk) / (2 * 112 * 112));
     h += fbm(x, z, 11) * (0.3 + 0.9 * t);
     const e = Math.max(Math.abs(x - 512), Math.abs(z - 512)), rim = Math.max(0, e - 455); h += rim * rim * 0.05;      // mountain border
     const fd = Math.hypot(x - ZN.fest[0], z - ZN.fest[1]); h += (4 - h) * (1 - sstep(clamp01((fd - ZN.fest[2]) / 60)));   // festival plateau
