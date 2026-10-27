@@ -399,11 +399,25 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 22px; background: var
 body[data-mode=race] #hBoard, body[data-mode=trial] #hBoard { top: 190px; }
 
 /* ---------------------------------------------------------------- touch */
-#touch { position: fixed; inset: 0; z-index: 16; display: none; pointer-events: none; }
-#touch button { position: absolute; pointer-events: auto; display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; background: rgba(12,16,26,.55); border: 2px solid rgba(255,255,255,.25); font-family: var(--f-cond); font-weight: 700; font-size: 15px; letter-spacing: .1em; color: #fff; touch-action: none; }
-#touch button.on { background: rgba(255,90,31,.6); }
+#touch { position: fixed; inset: 0; z-index: 16; display: none; pointer-events: none; touch-action: none; -webkit-user-select: none; user-select: none; }
+#touch button { position: absolute; pointer-events: auto; touch-action: none; display: grid; place-items: center; padding: 0; border: 1.5px solid rgba(255,255,255,.28); background: rgba(12,16,26,.5); color: #fff; font: 700 13px/1.05 var(--f-cond); letter-spacing: .08em; text-align: center; backdrop-filter: blur(3px); -webkit-tap-highlight-color: transparent; }
+#touch button.on { background: rgba(255,90,31,.65); border-color: #ff8a50; }
+#touch .tg { position: absolute; display: flex; gap: 10px; pointer-events: none; }
+#touch .tg button { position: static; }
+#touch .t-steer { width: 84px; height: 84px; border-radius: 22px; font-size: 30px; }
+#touch .t-sm { width: 58px; height: 52px; border-radius: 14px; }
+#touch .tg.l { left: max(18px, env(safe-area-inset-left)); bottom: 22px; }
+#touch .tg.lean { left: max(18px, env(safe-area-inset-left)); bottom: 120px; }
+#touch .t-gas { right: max(18px, env(safe-area-inset-right)); bottom: 22px; width: 104px; height: 104px; border-radius: 50%; font-size: 18px; background: rgba(255,90,31,.35); }
+#touch .t-brk { right: calc(max(18px, env(safe-area-inset-right)) + 118px); bottom: 22px; width: 76px; height: 76px; border-radius: 50%; }
+#touch .tg.tricks { right: max(14px, env(safe-area-inset-right)); bottom: 140px; flex-wrap: wrap; justify-content: flex-end; width: 200px; }
+#touch .tg.top { right: 14px; top: 14px; }
 body.touch #hud.on ~ #touch { display: block; }
-body.touch #hHint, body.touch #hMiniWrap { display: none !important; }
+html, body { overscroll-behavior: none; }
+body.touch #hud.on { touch-action: none; }
+@media (max-height: 420px) { #touch .t-steer { width: 70px; height: 70px; } #touch .t-gas { width: 88px; height: 88px; } #touch .tg.lean { bottom: 100px; } #touch .tg.tricks { bottom: 112px; width: 190px; } #touch .t-sm { width: 52px; height: 44px; } }
+body.touch #hHint { display: none !important; }
+body.touch #hMiniWrap { display: none; } body.touch[data-roam="1"] #hMiniWrap { display: block; right: auto; left: 14px; top: 70px; bottom: auto; } body.touch[data-roam="1"] #hProfile { width: 110px; height: 110px; }
 
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1100px) {
@@ -477,15 +491,12 @@ body[data-roam="1"] #hMiniWrap { width: 170px; } body[data-roam="1"] #hProfile {
 </div>
 
 <div id="touch">
-  <button data-k="KeyA" style="left:18px;bottom:130px">◀</button>
-  <button data-k="KeyD" style="left:104px;bottom:130px">▶</button>
-  <button data-k="ArrowUp" style="left:18px;bottom:44px">BACK</button>
-  <button data-k="ArrowDown" style="left:104px;bottom:44px">FWD</button>
-  <button data-k="KeyW" style="right:18px;bottom:44px;width:92px;height:92px">GAS</button>
-  <button data-k="KeyS" style="right:122px;bottom:44px">BRK</button>
-  <button data-k="Space" style="right:18px;bottom:150px">POP</button>
-  <button data-k="KeyZ" style="right:104px;bottom:150px">WHIP</button>
-  <button data-k="KeyX" style="right:190px;bottom:150px">X</button>
+  <div class="tg l"><button data-k="KeyA" class="t-steer">◀</button><button data-k="KeyD" class="t-steer">▶</button></div>
+  <div class="tg lean"><button data-k="ArrowUp" class="t-sm">LEAN<br>BACK</button><button data-k="ArrowDown" class="t-sm">LEAN<br>FWD</button></div>
+  <button data-k="KeyW" class="t-gas">GAS</button>
+  <button data-k="KeyS" class="t-brk">BRAKE</button>
+  <div class="tg tricks"><button data-k="Space" class="t-sm">POP</button><button data-k="KeyZ" class="t-sm">WHIP</button><button data-k="KeyX" class="t-sm">NO<br>HAND</button><button data-k="KeyC" class="t-sm">SUPER</button><button data-k="KeyV" class="t-sm">CAN</button></div>
+  <div class="tg top"><button data-act="cam" class="t-sm">CAM</button><button data-act="pause" class="t-sm">II</button></div>
 </div>
 
 <!-- ============================ PAUSE ============================ -->
@@ -2298,6 +2309,9 @@ const Game = (() => {
     inp.whip = whip ? 1 : 0; inp.nohand = nh ? 1 : 0; inp.sup = sup ? 1 : 0; inp.cancan = cc ? 1 : 0; inp.scrub = scrub ? 1 : 0; inp.pop = pop ? 1 : 0;
   }
   /* on-screen touch buttons */
+  try { if (('ontouchstart' in window) || (navigator.maxTouchPoints > 0 && matchMedia('(pointer:coarse)').matches)) document.body.classList.add('touch'); } catch (e) { }
+  document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); if (b.dataset.act === 'pause') { if (state === 'play') G_.pause(); else if (state === 'paused') G_.resume(); } else if (b.dataset.act === 'cam') G_.cycleCam(); }));
+  document.addEventListener('touchmove', e => { if (state === 'play' || state === 'countdown') e.preventDefault(); }, { passive: false });
   document.querySelectorAll('[data-k]').forEach(b => {
     const code = b.dataset.k;
     const on = e => { e.preventDefault(); K[code] = true; b.classList.add('on'); }, off = e => { e.preventDefault(); K[code] = false; b.classList.remove('on'); };
