@@ -448,6 +448,20 @@ body.touch #hMiniWrap { display: none; } body.touch[data-roam="1"] #hMiniWrap { 
 
 body[data-roam="1"] #hMiniWrap { width: 170px; } body[data-roam="1"] #hProfile { width: 170px; height: 170px; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; background: rgba(0,0,0,.35); }
 
+
+/* ================= AIRBORNE INSANITY MX: VISUAL POLISH UPDATE ================= */
+:root{--accent:#b8ff35;--cyan:#54e8ff}
+body{background:#070b10}
+.panel,.panel.news,.panel.rider-card,.panel.gp,.panel.set-wrap,.panel.card{border-color:rgba(184,255,53,.19);background:linear-gradient(145deg,rgba(17,25,32,.96),rgba(7,11,16,.94));box-shadow:0 14px 40px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(14px)}
+.brand,.logo{filter:drop-shadow(0 0 18px rgba(184,255,53,.16))}
+.primary,.btn.primary,.btn.primary.big,.btn.gold.big{background:linear-gradient(110deg,#d6ff62,#9be51e);color:#10150a;border:1px solid rgba(255,255,255,.28);box-shadow:0 7px 24px rgba(159,235,39,.19),inset 0 1px rgba(255,255,255,.5);transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+.primary:hover,.btn.primary:hover,.btn.gold.big:hover{transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 10px 30px rgba(159,235,39,.28)}
+.nav,.topbar,.bottombar{background:linear-gradient(180deg,rgba(8,13,18,.93),rgba(8,13,18,.78));border-color:rgba(255,255,255,.08);backdrop-filter:blur(16px)}
+.chip,.coin,.tag,.tg,.map-card,.thumb{border-color:rgba(184,255,53,.24)}
+.map-card{overflow:hidden;transition:transform .16s ease,border-color .16s ease}.map-card:hover{transform:translateY(-3px);border-color:rgba(184,255,53,.7)}
+input,select{accent-color:#b8ff35}::selection{background:rgba(184,255,53,.35);color:#fff}
+@media(max-width:720px){.panel,.map-card{backdrop-filter:blur(8px)}.primary,.btn.primary,.btn.primary.big,.btn.gold.big{min-height:44px}}
+/* ================= END VISUAL POLISH UPDATE ================= */
 </style>
 </head>
 <body>
@@ -732,8 +746,8 @@ const TAU = Math.PI * 2;
 const BIKE = {
   m: 230, I: 95, R: 0.33, Iw: 1.1,
   travel: 0.30, k: 17000, kp: 420000, kb: 320000, cC: 2300, cR: 3400,
-  Tmax: 600, P: 55000, VMAX: 36, muR: 1.3, muF: 1.15,
-  brR: 420, brF: 650, gyro: 2.5, airTq: 800, gndTq: 620,
+  Tmax: 650, P: 59000, VMAX: 39, muR: 1.34, muF: 1.18,
+  brR: 445, brF: 675, gyro: 2.65, airTq: 900, gndTq: 680,
   rear:  { x: -0.70, y: -0.42, ux: 0.12,  uy: 0.993 },
   front: { x: 0.74,  y: -0.42, ux: -0.42, uy: 0.907 },
 };
