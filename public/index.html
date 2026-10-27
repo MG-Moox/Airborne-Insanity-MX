@@ -530,7 +530,7 @@ body[data-roam="1"] #hMiniWrap { width: 170px; } body[data-roam="1"] #hProfile {
     <div class="home-left">
       <div class="hero-title"><div class="eyebrow">FREESTYLE SUPERCROSS</div><h1>Airborne<span>Insanity <em>MX</em></span></h1></div>
       <div class="menu">
-        <button class="primary" data-go="play" id="goRoam">Free Roam<i>OPEN WORLD · HILLS · TRACKS</i></button>
+        <button class="primary" data-go="play" id="goRoam">Free Roam<i>THE BIG HILL · PEAK TO FESTIVAL</i></button>
         <button data-go="career">Career<i>RIDE THE CIRCUIT. EARN CASH.</i></button>
         <button data-go="play">Quick Play<i>FREE RIDE / FREESTYLE / RACE</i></button>
         <button data-go="garage">Garage<i>BUY, UPGRADE, CUSTOMISE</i></button>
@@ -1008,9 +1008,11 @@ if (typeof module !== 'undefined') module.exports = { Terrain, Sim, BIKE, wrapPi
 <script>
 'use strict';
 /* =====================================================================
-   AIRBORNE INSANITY MX - open world (free roam)
-   A 1 km x 1 km heightmap: rolling hills, mountain rim, and 4 winding
-   closed tracks carved into it (berms, kickers, gaps, landings).
+   AIRBORNE INSANITY MX - the big hill (open world)
+   One 1 km x 1 km world inside a mountain border. The peak sits in the
+   top-left corner and the land flows downhill (towards +x +z) through
+   forest trails and a jump zone / MX circuit into a festival and lake
+   in the bottom-right corner.
    World coords: x,z in 0..SIZE metres, y up.
    ===================================================================== */
 const Roam = (() => {
@@ -1019,8 +1021,15 @@ const Roam = (() => {
   const H = new Float32Array(N * N), MASK = new Float32Array(N * N);
   let tracks = [];
 
+  const ZN = {
+    peak: [170, 170], fest: [790, 800, 70], stage: [828, 826], lake: [930, 930, 85], water: -0.15,
+    zones: [['THE PEAK', 150, 150], ['FOREST TRAILS', 470, 440], ['MX + JUMP ZONE', 690, 650], ['FESTIVAL', 800, 820]],
+  };
+  R.zones = ZN;
+
   const hash = (ix, iz, s) => { let h = (ix * 374761393 + iz * 668265263 + s * 1442695041) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
   const sstep = t => t * t * (3 - 2 * t);
+  const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
   function vnoise(x, z, s) {
     const ix = Math.floor(x), iz = Math.floor(z), fx = sstep(x - ix), fz = sstep(z - iz);
     const a = hash(ix, iz, s), b = hash(ix + 1, iz, s), c = hash(ix, iz + 1, s), d = hash(ix + 1, iz + 1, s);
@@ -1028,124 +1037,122 @@ const Roam = (() => {
   }
   const fbm = (x, z, s) => (vnoise(x / 300, z / 300, s) - 0.5) * 20 + (vnoise(x / 130, z / 130, s + 1) - 0.5) * 8 + (vnoise(x / 55, z / 55, s + 2) - 0.5) * 4.5 + (vnoise(x / 22, z / 22, s + 3) - 0.5) * 1.2;
 
-  /* ---- track definitions: centre, base radius, wobble, jumps ---- */
+  /* natural ground height (before trails are carved) */
+  function baseH(x, z) {
+    const d = (x + z) / 2048, t = Math.max(0, 1 - d);
+    let h = 95 * t * t;
+    const pk = Math.hypot(x - ZN.peak[0], z - ZN.peak[1]); h += 45 * Math.exp(-(pk * pk) / (2 * 105 * 105));
+    h += fbm(x, z, 11) * (0.3 + 0.9 * t);
+    const e = Math.max(Math.abs(x - 512), Math.abs(z - 512)), rim = Math.max(0, e - 455); h += rim * rim * 0.05;      // mountain border
+    const fd = Math.hypot(x - ZN.fest[0], z - ZN.fest[1]); h += (4 - h) * (1 - sstep(clamp01((fd - ZN.fest[2]) / 60)));   // festival plateau
+    const ld = Math.hypot(x - ZN.lake[0], z - ZN.lake[1]); h += (-1.4 - h) * (1 - sstep(clamp01((ld - ZN.lake[2]) / 45)));  // lake basin
+    return h;
+  }
+
+  /* ---- track definitions ---- */
   const DEFS = [
-    { name: 'GRAND LOOP', cx: 512, cz: 512, r: 330, a: 55, b: 30, p1: 0.4, p2: 1.7, width: 5.0, color: '#ff5a1f' },
-    { name: 'RIDGE RUN', cx: 512, cz: 512, r: 190, a: 35, b: 22, p1: 2.1, p2: 0.3, width: 4.4, color: '#27e0ff' },
-    { name: 'DUST BOWL', cx: 300, cz: 700, r: 105, a: 22, b: 12, p1: 1.0, p2: 2.6, width: 4.6, color: '#ffd400' },
-    { name: 'SKY CIRCUIT', cx: 740, cz: 300, r: 120, a: 26, b: 14, p1: 3.0, p2: 1.2, width: 4.8, color: '#ff2f92' },
+    { name: 'PEAK DESCENT', open: true, width: 5.0, color: '#ff5a1f', grade: 0.17, jumpEvery: 150, big: true, ctrl: [[168, 168], [260, 132], [350, 170], [330, 250], [240, 270], [175, 330], [215, 410], [310, 400], [395, 340], [450, 390], [410, 470], [345, 495], [400, 540], [470, 500], [490, 450]] },
+    { name: 'FOREST TRAIL', open: true, width: 3.6, color: '#3dff7a', grade: 0.2, jumpEvery: 120, small: true, sho: 11, ctrl: [[490, 450], [540, 425], [582, 456], [545, 496], [500, 508], [480, 548], [522, 582], [577, 570], [612, 540], [660, 556], [650, 604], [612, 628]] },
+    { name: 'MX CIRCUIT', open: false, width: 6.0, color: '#ffd400', grade: 0.2, jumpEvery: 105, polar: { cx: 690, cz: 650, r: 96, a: 18, b: 9, p1: 1.0, p2: 2.6 }, whoops: 0.08 },
+    { name: 'FESTIVAL RUN', open: true, width: 6.0, color: '#ff2f92', grade: 0.2, jumpEvery: 80, ctrl: [[690, 748], [640, 790], [650, 850], [710, 886], [772, 868], [760, 822], [800, 802]], whoops: 0.5 },
   ];
 
+  function resamp(raw, closed) {
+    const pts = []; let s = 0, acc = 0; const M = raw.length;
+    pts.push({ x: raw[0][0], z: raw[0][1], s: 0 });
+    const last = closed ? M : M - 1;
+    for (let i = 1; i <= last; i++) {
+      const p = raw[i % M], q = raw[i - 1], d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+      acc += d;
+      if (acc >= 1) { s += acc; acc = 0; if (!(closed && i === M)) pts.push({ x: p[0], z: p[1], s }); }
+    }
+    return { pts, len: s + 1 };
+  }
+  function spline(ctrl) {
+    const n = ctrl.length, raw = [], P = i => ctrl[Math.max(0, Math.min(n - 1, i))];
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2), m = Math.max(8, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2));
+      for (let k = 0; k < m; k++) {
+        const t = k / m, t2 = t * t, t3 = t2 * t, f = a => 0.5 * ((2 * p1[a]) + (-p0[a] + p2[a]) * t + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * t2 + (-p0[a] + 3 * p1[a] - 3 * p2[a] + p3[a]) * t3);
+        raw.push([f(0), f(1)]);
+      }
+    }
+    raw.push(ctrl[n - 1].slice());
+    return raw;
+  }
+
   function buildTrack(def, seed) {
-    // closed polar curve, resampled to ~1 m arc length
-    const raw = []; const M = 1400;
-    for (let i = 0; i < M; i++) {
-      const th = i / M * Math.PI * 2, rr = def.r + def.a * Math.sin(2 * th + def.p1) + def.b * Math.sin(3 * th + def.p2);
-      raw.push([def.cx + rr * Math.cos(th), def.cz + rr * Math.sin(th)]);
-    }
-    const pts = []; let acc = 0, s = 0; pts.push({ x: raw[0][0], z: raw[0][1], s: 0 });
-    for (let i = 1; i <= M; i++) {
-      const p = raw[i % M], q = raw[i - 1]; const d = Math.hypot(p[0] - q[0], p[1] - q[1]); acc += d;
-      if (acc >= 1) { s += acc; acc = 0; if (i < M) pts.push({ x: p[0], z: p[1], s }); }
-    }
-    const len = s + 1;
-    // heading and curvature
-    const n = pts.length;
-    for (let i = 0; i < n; i++) { const a = pts[(i + n - 2) % n], b = pts[(i + 2) % n]; pts[i].psi = Math.atan2(b.z - a.z, b.x - a.x); }
-    // base profile: heavily smoothed terrain height along the line (circular moving average)
-    const base = pts.map(p => fbm(p.x, p.z, seed));
-    const sm = (arr, r) => arr.map((_, i) => { let t = 0; for (let k = -r; k <= r; k++) t += arr[(i + k + n * 4) % n]; return t / (2 * r + 1); });
-    let prof = sm(sm(base, 34), 20);
-    // limit climb gradient so every road is rideable (max ~12 degrees), circular passes
+    const closed = !def.open;
+    let raw;
+    if (closed) {
+      raw = []; const M = 1400, o = def.polar;
+      for (let i = 0; i < M; i++) { const th = i / M * Math.PI * 2, rr = o.r + o.a * Math.sin(2 * th + o.p1) + o.b * Math.sin(3 * th + o.p2); raw.push([o.cx + rr * Math.cos(th), o.cz + rr * Math.sin(th)]); }
+    } else raw = spline(def.ctrl);
+    const { pts, len } = resamp(raw, closed), n = pts.length;
+    const ix = (i) => closed ? (i % n + n) % n : Math.max(0, Math.min(n - 1, i));
+    for (let i = 0; i < n; i++) { const a = pts[ix(i - 2)], b = pts[ix(i + 2)]; pts[i].psi = Math.atan2(b.z - a.z, b.x - a.x); }
+    const sm = (arr, r) => arr.map((_, i) => { let t = 0; for (let k = -r; k <= r; k++) t += arr[ix(i + k)]; return t / (2 * r + 1); });
+    let prof = sm(sm(pts.map(p => baseH(p.x, p.z)), 30), 18);
+    const G = def.grade;
     for (let pass = 0; pass < 6; pass++) {
-      for (let i = 1; i <= n; i++) { const a = prof[(i - 1) % n], k = i % n; prof[k] = Math.max(a - 0.2, Math.min(a + 0.2, prof[k])); }
-      for (let i = n - 1; i >= -1; i--) { const a = prof[(i + 1 + n) % n], k = (i + n) % n; prof[k] = Math.max(a - 0.2, Math.min(a + 0.2, prof[k])); }
+      for (let i = 1; i <= n; i++) { const a = prof[ix(i - 1)], k = ix(i); if (closed || i < n) prof[k] = Math.max(a - G, Math.min(a + G, prof[k])); }
+      for (let i = n - 1; i >= -1; i--) { const a = prof[ix(i + 1)], k = ix(i); if (closed || i >= 0) prof[k] = Math.max(a - G, Math.min(a + G, prof[k])); }
     }
     prof = sm(prof, 6);
-    // jump features: evenly spread kickers with gaps
-    const jumps = []; const count = Math.max(4, Math.round(len / 190));
+    // jumps
+    const jumps = []; const margin = closed ? 0 : 60, usable = len - margin * 2, count = Math.max(closed ? 4 : 2, Math.round(usable / def.jumpEvery));
     for (let j = 0; j < count; j++) {
-      const at = Math.round(len * (j + 0.35 + 0.25 * hash(j, seed, 9)) / count);
-      const kind = j % 3; // 0 double, 1 big double, 2 table
-      const up = kind === 1 ? 7.5 : 6.5, hgt = kind === 1 ? 2.7 : 2.1, gap = kind === 0 ? 15 : kind === 1 ? 21 : 0, land = 5.5, down = 13;
+      const at = Math.round(margin + usable * (j + 0.35 + 0.25 * hash(j, seed, 9)) / count);
+      const kind = j % 3;
+      let up = kind === 1 ? 7.5 : 6.5, hgt = kind === 1 ? 2.7 : 2.1, gap = kind === 0 ? 15 : kind === 1 ? 21 : 0;
+      if (def.big && kind !== 2) { hgt *= 1.25; gap *= 1.2; }
+      if (def.small) { hgt *= 0.55; gap = kind === 1 ? 9 : kind === 0 ? 7 : 0; up = 5; }
+      const land = 5.5, down = 13;
       jumps.push({ s: at, kind, up, hgt, gap, land, down });
       for (let i = 0; i < n; i++) {
-        const ds = ((pts[i].s - at) % len + len * 1.5) % len - len * 0.5; // signed distance along track
+        const ds = closed ? ((pts[i].s - at) % len + len * 1.5) % len - len * 0.5 : pts[i].s - at;
         let add = 0;
         if (ds >= 0 && ds < up) { const t = ds / up; add = hgt * (0.6 * t + 0.4 * t * t); }
-        else if (ds >= up && ds < up + 0.9) add = hgt * (1 - (ds - up) / 0.9) * 0.0;       // lip drops away
-        else if (kind === 2 && ds >= up && ds < up + 22) add = hgt;                       // table top plateau
-        else if (kind === 2 && ds >= up + 22 && ds < up + 22 + 7) { const t = (ds - up - 22) / 7; add = hgt * (1 - t); }
+        else if (kind === 2 && ds >= up && ds < up + 22) add = hgt;
+        else if (kind === 2 && ds >= up + 22 && ds < up + 29) { const t = (ds - up - 22) / 7; add = hgt * (1 - t); }
         else if (kind !== 2 && ds >= up + 0.9 + gap && ds < up + 0.9 + gap + land) { const t = (ds - up - 0.9 - gap) / land; add = hgt * t; }
         else if (kind !== 2 && ds >= up + 0.9 + gap + land && ds < up + 0.9 + gap + land + down) { const t = (ds - up - 0.9 - gap - land) / down; add = hgt * (1 - t); }
         if (add) prof[i] += add;
       }
     }
-    // whoops section
-    const wAt = Math.round(len * 0.08); for (let i = 0; i < n; i++) { const ds = pts[i].s - wAt; if (ds > 0 && ds < 70) prof[i] += 0.55 * 0.5 * (1 - Math.cos(ds / 5.5 * Math.PI * 2)) * Math.min(1, ds / 8, (70 - ds) / 8); }
+    if (def.whoops) { const wAt = Math.round(len * def.whoops); for (let i = 0; i < n; i++) { const ds = pts[i].s - wAt; if (ds > 0 && ds < 70) prof[i] += 0.55 * 0.5 * (1 - Math.cos(ds / 5.5 * Math.PI * 2)) * Math.min(1, ds / 8, (70 - ds) / 8); } }
     pts.forEach((p, i) => { p.y = prof[i]; });
-    return { name: def.name, color: def.color, width: def.width, pts, len, jumps, closed: true };
+    return { name: def.name, color: def.color, width: def.width, sho: def.sho || 13, pts, len, jumps, closed };
   }
 
   function build() {
-    // 1. terrain
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-      const x = i * RES, z = j * RES, dx = x - 512, dz = z - 512, d = Math.hypot(dx, dz);
-      let h = fbm(x, z, 11);
-      const rim = Math.max(0, d - 440); h += rim * rim * 0.035;     // mountain wall
-      H[j * N + i] = h;
-    }
-    // 2. tracks
-    tracks = DEFS.map((d, i) => buildTrack(d, 11 + i)); R.built = true;
-    const SHO = 13;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) H[j * N + i] = baseH(i * RES, j * RES);
+    MASK.fill(0);
+    tracks = DEFS.map((d, i) => buildTrack(d, 11 + i));
     for (const tr of tracks) {
-      const wCore = tr.width, cell = new Float32Array(0);
-      const best = new Map(); // cell -> [dist, y, side]
+      const wCore = tr.width, SHO = tr.sho, best = new Map();
       for (let k = 0; k < tr.pts.length; k++) {
         const p = tr.pts[k], ix0 = Math.max(0, Math.floor(p.x - SHO)), ix1 = Math.min(N - 1, Math.ceil(p.x + SHO)), iz0 = Math.max(0, Math.floor(p.z - SHO)), iz1 = Math.min(N - 1, Math.ceil(p.z + SHO));
-        const cs = Math.cos(p.psi), sn = Math.sin(p.psi);
         for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
           const dx = ix * RES - p.x, dz = iz * RES - p.z, d = Math.hypot(dx, dz); if (d > SHO) continue;
           const key = iz * N + ix, cur = best.get(key);
-          if (!cur || d < cur[0]) best.set(key, [d, p.y, -dx * sn + dz * cs, k]);
+          if (!cur || d < cur[0]) best.set(key, [d, p.y]);
         }
       }
       for (const [key, v] of best) {
-        const d = v[0]; let w = d <= wCore ? 1 : d >= SHO ? 0 : 1 - sstep((d - wCore) / (SHO - wCore));
+        const d = v[0], w = d <= wCore ? 1 : d >= SHO ? 0 : 1 - sstep((d - wCore) / (SHO - wCore));
         let y = v[1];
-        // banked edges (berm) on the shoulders
         const edge = Math.max(0, (d - wCore * 0.55) / (wCore * 0.45)); if (d > wCore * 0.55 && d <= wCore + 1.5) y += 0.55 * Math.min(1, edge) * (d <= wCore ? 1 : 1 - (d - wCore) / 1.5);
         H[key] = H[key] + (y - H[key]) * w; if (w > MASK[key]) MASK[key] = w;
       }
     }
-    // 3. light blur of the shoulders to avoid stair-steps
     const tmp = new Float32Array(H.length);
-    for (let pass = 0; pass < 1; pass++) {
-      for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) { const k = j * N + i; tmp[k] = (H[k] * 4 + H[k - 1] + H[k + 1] + H[k - N] + H[k + N]) / 8; }
-      for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) { const k = j * N + i; H[k] = tmp[k]; }
-    }
+    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) { const k = j * N + i; tmp[k] = (H[k] * 4 + H[k - 1] + H[k + 1] + H[k - N] + H[k + N]) / 8; }
+    for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) { const k = j * N + i; H[k] = tmp[k]; }
+    R.built = true;
   }
 
-  R.drawMap = (g, w, h, hi) => {
-    if (!R._bg && typeof document !== 'undefined') {
-      const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), im = x.createImageData(256, 256);
-      for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
-        const wx = i * 4, wz = j * 4, hh = R.h(wx, wz), sh = Math.max(0.6, Math.min(1.35, (R.h(wx - 3, wz - 3) - R.h(wx + 3, wz + 3)) * 0.05 + 1)), d = Math.hypot(wx - 512, wz - 512), rock = Math.min(1, Math.max(0, (d - 400) / 60));
-        const k = (j * 256 + i) * 4, r = (58 + hh * 1.2) * (1 - rock) + 120 * rock, gg = (96 + hh * 1.0) * (1 - rock) + 116 * rock, b = 48 * (1 - rock) + 108 * rock;
-        im.data[k] = Math.min(255, r * sh); im.data[k + 1] = Math.min(255, gg * sh); im.data[k + 2] = Math.min(255, b * sh); im.data[k + 3] = 255;
-      }
-      x.putImageData(im, 0, 0); R._bg = c;
-    }
-    g.clearRect(0, 0, w, h); if (R._bg) g.drawImage(R._bg, 0, 0, w, h);
-    g.lineJoin = 'round';
-    tracks.forEach((t, ti) => {
-      g.strokeStyle = t.color; g.globalAlpha = (hi === undefined || hi < 0 || hi === ti) ? 1 : 0.35; g.lineWidth = hi === ti ? 4 : 3; g.beginPath();
-      for (let k = 0; k <= t.pts.length; k += 6) { const p = t.pts[k % t.pts.length]; k ? g.lineTo(p.x / SIZE * w, p.z / SIZE * h) : g.moveTo(p.x / SIZE * w, p.z / SIZE * h); }
-      g.closePath(); g.stroke();
-    });
-    g.globalAlpha = 1;
-  };
-  R.SIZE = SIZE; R.N = N; R.RES = RES;
+  R.SIZE = SIZE; R.N = N; R.RES = RES; R.baseH = baseH;
   R.build = build;
   R.tracks = () => tracks;
   R.grid = () => H; R.mask = () => MASK;
@@ -1156,13 +1163,38 @@ const Roam = (() => {
     return a + (b - a) * tx + (c - a) * tz + (a - b - c + d) * tx * tz;
   };
   R.normal = (x, z, out) => { const e = 1.0, hx = R.h(x + e, z) - R.h(x - e, z), hz = R.h(x, z + e) - R.h(x, z - e); const l = Math.hypot(hx, 2 * e, hz); out = out || [0, 0, 0]; out[0] = -hx / l; out[1] = 2 * e / l; out[2] = -hz / l; return out; };
-  /* nearest point on any track: {track, k, d, s} */
   R.nearest = (x, z) => {
     let best = null;
     for (let ti = 0; ti < tracks.length; ti++) { const t = tracks[ti]; for (let k = 0; k < t.pts.length; k += 3) { const p = t.pts[k], d = Math.hypot(p.x - x, p.z - z); if (!best || d < best.d) best = { t: ti, k, d }; } }
     return best;
   };
   R.spawn = () => { const t = tracks[0], p = t.pts[5]; return { x: p.x, z: p.z, psi: p.psi, t: 0 }; };
+
+  /* top-down map (menu thumbnails + HUD minimap) */
+  R.drawMap = (g, w, h, hi, labels) => {
+    if (!R._bg && typeof document !== 'undefined') {
+      const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), im = x.createImageData(256, 256);
+      for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+        const wx = i * 4, wz = j * 4, hh = R.h(wx, wz), sh = Math.max(0.6, Math.min(1.35, (R.h(wx - 3, wz - 3) - R.h(wx + 3, wz + 3)) * 0.06 + 1));
+        const e = Math.max(Math.abs(wx - 512), Math.abs(wz - 512)), rock = clamp01((e - 440) / 50), snow = clamp01((hh - 105) / 25);
+        let r = 58 + hh * 0.5, gg = 98 + hh * 0.3, b = 50;
+        r = r * (1 - rock) + 125 * rock; gg = gg * (1 - rock) + 118 * rock; b = b * (1 - rock) + 108 * rock;
+        r += (235 - r) * snow; gg += (240 - gg) * snow; b += (250 - b) * snow;
+        if (hh < ZN.water) { r = 40; gg = 105; b = 160; }
+        const k = (j * 256 + i) * 4; im.data[k] = Math.min(255, r * sh); im.data[k + 1] = Math.min(255, gg * sh); im.data[k + 2] = Math.min(255, b * sh); im.data[k + 3] = 255;
+      }
+      x.putImageData(im, 0, 0); R._bg = c;
+    }
+    g.clearRect(0, 0, w, h); if (R._bg) g.drawImage(R._bg, 0, 0, w, h);
+    g.lineJoin = 'round';
+    tracks.forEach((t, ti) => {
+      g.strokeStyle = t.color; g.globalAlpha = (hi === undefined || hi < 0 || hi === ti) ? 1 : 0.35; g.lineWidth = hi === ti ? 4 : 3; g.beginPath();
+      for (let k = 0; k < t.pts.length; k += 6) { const p = t.pts[k]; k ? g.lineTo(p.x / SIZE * w, p.z / SIZE * h) : g.moveTo(p.x / SIZE * w, p.z / SIZE * h); }
+      if (t.closed) g.closePath(); g.stroke();
+    });
+    g.globalAlpha = 1;
+    if (labels) { g.font = '700 ' + Math.round(w / 34) + 'px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 3; for (const z of ZN.zones) { const px = z[1] / SIZE * w, pz = z[2] / SIZE * h; g.strokeText(z[0], px, pz); g.fillText(z[0], px, pz); } }
+  };
   return R;
 })();
 if (typeof module !== 'undefined') module.exports = { Roam };
@@ -1892,8 +1924,8 @@ const World = (() => {
   W.loadRoam = () => {
     disposeMap();
     if (!Roam.built) Roam.build();
-    Terrain.roam = true; W.roamMode = true; mapObjs.forEach(() => { });
-    const th = ROAM_THEME, u = skyMat.uniforms;
+    Terrain.roam = true; W.roamMode = true;
+    const th = ROAM_THEME, u = skyMat.uniforms, ZN = Roam.zones;
     u.top.value.set(...th.skyTop); u.mid.value.set(...th.skyMid); u.hor.value.set(...th.skyHor); u.glow.value.set(...th.glow);
     u.sunSize.value = 1; u.sunCol.value.set(1, 0.88, 0.69); stars.visible = false;
     scene.background = new THREE.Color(th.fog); scene.fog = new THREE.Fog(th.fog, th.fogNear, th.fogFar);
@@ -1904,7 +1936,9 @@ const World = (() => {
     const g = new THREE.Group(), N = Roam.N, SIZE = Roam.SIZE, MASK = Roam.mask();
     const CH = 8, CS = SIZE / CH, STR = 2, seg = CS / STR;
     const nrm = [0, 1, 0], c = new THREE.Color();
+    const cDirt = new THREE.Color(), cRock = new THREE.Color(0.40, 0.37, 0.34), cSnow = new THREE.Color(0.93, 0.95, 1), cSand = new THREE.Color(0.72, 0.64, 0.45), cFest = new THREE.Color(0.36, 0.33, 0.28), cNeedle = new THREE.Color();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, envMapIntensity: 0.35 });
+    const rr = (a, b, s) => { const x = Math.sin(a * 127.1 + b * 311.7 + s * 74.7) * 43758.5453; return x - Math.floor(x); };
     for (let cz = 0; cz < CH; cz++) for (let cx = 0; cx < CH; cx++) {
       const n = seg + 1, pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), idx = [];
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
@@ -1914,12 +1948,16 @@ const World = (() => {
         const mi = Math.min(N - 1, Math.round(wz)) * N + Math.min(N - 1, Math.round(wx)), m = MASK[mi];
         const no = Math.sin(wx * 0.11) * Math.sin(wz * 0.093) * 0.5 + Math.sin(wx * 0.37 + wz * 0.29) * 0.25;
         const steep = Math.min(1, Math.max(0, (1 - nrm[1] - 0.12) / 0.22));
-        const dry = Math.min(1, Math.max(0, (h - 2 + no * 4) / 14));
-        c.setRGB(0.20 + 0.18 * dry + no * 0.04, 0.34 + 0.06 * dry + no * 0.05, 0.12 + 0.04 * dry);   // grass -> dry grass
-        c.lerp(new THREE.Color(0.38, 0.35, 0.32), steep);                                              // rock on steep ground
-        const wd = Math.hypot(wx - 512, wz - 512), snow = Math.min(1, Math.max(0, (h - 38) / 10)); if (snow > 0 && wd > 420) c.lerp(new THREE.Color(0.92, 0.94, 1), snow);
-        const rut = 0.5 + 0.5 * Math.sin(wx * 0.9 + wz * 1.3); const dirt = new THREE.Color(0.42 + rut * 0.04, 0.26 + rut * 0.03, 0.15);
-        c.lerp(dirt, Math.min(1, m * 1.25));
+        const dz = (wx + wz) / 2048, dry = Math.min(1, Math.max(0, (h - 2 + no * 4) / 40));
+        c.setRGB(0.19 + 0.2 * dry + no * 0.04, 0.34 + 0.05 * dry + no * 0.05, 0.12 + 0.05 * dry);       // grass -> dry grass
+        const forest = Math.min(1, Math.max(0, 1 - Math.abs(dz - 0.45) / 0.17));                           // forest floor (darker, needles)
+        if (forest > 0) { cNeedle.setRGB(0.13 + no * 0.02, 0.22 + no * 0.03, 0.09); c.lerp(cNeedle, forest * 0.7); }
+        c.lerp(cRock, steep * (0.5 + 0.5 * Math.min(1, h / 40)));
+        const snow = Math.min(1, Math.max(0, (h - 80) / 16)); if (snow > 0) c.lerp(cSnow, snow * (1 - steep * 0.5));
+        const ld = Math.hypot(wx - ZN.lake[0], wz - ZN.lake[1]); if (ld < ZN.lake[2] + 38 && h < 1.6) c.lerp(cSand, Math.min(1, (1.6 - h) / 1.2));
+        const fd = Math.hypot(wx - ZN.fest[0], wz - ZN.fest[1]); if (fd < ZN.fest[2] + 8) c.lerp(cFest, 0.75 * (1 - Math.min(1, Math.max(0, (fd - ZN.fest[2] + 20) / 28))));
+        const rut = 0.5 + 0.5 * Math.sin(wx * 0.9 + wz * 1.3); cDirt.setRGB(0.42 + rut * 0.04, 0.26 + rut * 0.03, 0.15);
+        c.lerp(cDirt, Math.min(1, m * 1.25));
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
       }
       for (let j = 0; j < seg; j++) for (let i = 0; i < seg; i++) { const a = j * n + i; idx.push(a, a + n, a + 1, a + 1, a + n, a + n + 1); }
@@ -1928,38 +1966,89 @@ const World = (() => {
       geo.setIndex(idx); geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; g.add(mesh);
     }
-    // props: trees + rocks (instanced)
-    const rr = (a, b, s) => { const x = Math.sin(a * 127.1 + b * 311.7 + s * 74.7) * 43758.5453; return x - Math.floor(x); };
+    // lake
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), new THREE.MeshStandardMaterial({ color: 0x2f7fae, roughness: 0.06, metalness: 0.15, transparent: true, opacity: 0.86, envMapIntensity: 1.6 }));
+    water.rotation.x = -Math.PI / 2; water.position.set(SIZE / 2, ZN.water, SIZE / 2); g.add(water);
+
+    // trees (dense in the forest band), rocks (many up the peak)
     const trees = [], rocks = [];
-    for (let t = 0; t < 9000 && trees.length < 2600; t++) {
-      const x = rr(t, 1, 3) * SIZE, z = rr(t, 2, 3) * SIZE, mi = Math.round(z) * N + Math.round(x), h = Roam.h(x, z);
-      if (MASK[mi] > 0 || Roam.normal(x, z, nrm)[1] < 0.93 || h > 30 || Math.hypot(x - 512, z - 512) > 450) continue;
-      let near = false; for (const tr of Roam.tracks()) { for (let k = 0; k < tr.pts.length; k += 6) { const p = tr.pts[k]; if (Math.abs(p.x - x) < 22 && Math.abs(p.z - z) < 22) { near = true; break; } } if (near) break; }
-      if (near) continue;
-      trees.push([x, h, z, 0.8 + rr(t, 4, 3) * 1.1, rr(t, 5, 3)]);
+    for (let t = 0; t < 26000 && trees.length < 4300; t++) {
+      const x = rr(t, 1, 3) * SIZE, z = rr(t, 2, 3) * SIZE, mi = Math.round(z) * N + Math.round(x), h = Roam.h(x, z), dz = (x + z) / 2048;
+      const fo = dz > 0.27 && dz < 0.64; if (!fo && rr(t, 3, 3) > 0.16) continue;
+      if (MASK[mi] > 0 || h > 78 || Roam.normal(x, z, nrm)[1] < 0.9) continue;
+      if (Math.max(Math.abs(x - 512), Math.abs(z - 512)) > 480) continue;
+      if (Math.hypot(x - ZN.fest[0], z - ZN.fest[1]) < ZN.fest[2] + 30 || Math.hypot(x - ZN.lake[0], z - ZN.lake[1]) < ZN.lake[2] + 40) continue;
+      if (Math.hypot(x - 690, z - 650) < 150 && Math.hypot(x - 690, z - 650) > 20 && Math.hypot(x - 690, z - 650) < 135) continue;   // keep the MX arena open
+      trees.push([x, h, z, 0.8 + rr(t, 4, 3) * 1.2, rr(t, 5, 3)]);
     }
-    for (let t = 0; t < 5000 && rocks.length < 500; t++) {
+    for (let t = 0; t < 9000 && rocks.length < 700; t++) {
       const x = rr(t, 7, 5) * SIZE, z = rr(t, 8, 5) * SIZE, mi = Math.round(z) * N + Math.round(x); if (MASK[mi] > 0.02) continue;
-      const h = Roam.h(x, z); if (Roam.normal(x, z, nrm)[1] > 0.97 && rr(t, 9, 5) > 0.3) continue;
-      rocks.push([x, h, z, 0.6 + rr(t, 10, 5) * 2.2, rr(t, 11, 5) * 6]);
+      const h = Roam.h(x, z), nn = Roam.normal(x, z, nrm)[1]; if (nn > 0.97 && rr(t, 9, 5) > 0.3) continue; if (h < 3 || Math.hypot(x - ZN.fest[0], z - ZN.fest[1]) < 90) continue;
+      rocks.push([x, h, z, 0.6 + rr(t, 10, 5) * (h > 60 ? 3.6 : 2.0), rr(t, 11, 5) * 6]);
     }
-    const mk = (geo, material, list, fn) => { const im = new THREE.InstancedMesh(geo, material, Math.max(1, list.length)), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(); list.forEach((t, i) => { fn(t, p, sc, e); q.setFromEuler(e); m4.compose(p, q, sc); im.setMatrixAt(i, m4); }); im.instanceMatrix.needsUpdate = true; im.count = list.length; g.add(im); return im; };
+    const mk = (geo, material, list, fn, cols) => { const im = new THREE.InstancedMesh(geo, material, Math.max(1, list.length)), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(); list.forEach((t, i) => { fn(t, p, sc, e); q.setFromEuler(e); m4.compose(p, q, sc); im.setMatrixAt(i, m4); if (cols) im.setColorAt(i, cols(t, i)); }); im.instanceMatrix.needsUpdate = true; if (cols && im.instanceColor) im.instanceColor.needsUpdate = true; im.count = list.length; g.add(im); return im; };
     const trunkG = new THREE.CylinderGeometry(0.18, 0.28, 2.2, 6); trunkG.translate(0, 1.1, 0);
     const leafG1 = new THREE.ConeGeometry(1.5, 3.6, 7); leafG1.translate(0, 3.2, 0); const leafG2 = new THREE.ConeGeometry(1.1, 3.0, 7); leafG2.translate(0, 5.0, 0);
-    const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 1 }), leafM = new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 0.9 });
+    const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 1 }), leafM = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
     const place = (t, p, sc, e) => { p.set(t[0], t[1] - 0.1, t[2]); sc.set(t[3], t[3] * (0.9 + t[4] * 0.4), t[3]); e.set(0, t[4] * 6, 0); };
-    const t1 = mk(trunkG, trunkM, trees, place), l1 = mk(leafG1, leafM, trees, place), l2 = mk(leafG2, leafM, trees, place);
-    l1.castShadow = true; l1.receiveShadow = true;
+    const leafCol = (t) => new THREE.Color().setRGB(0.12 + t[4] * 0.1, 0.30 + t[4] * 0.14, 0.12);
+    mk(trunkG, trunkM, trees, place); const l1 = mk(leafG1, leafM, trees, place, leafCol); mk(leafG2, leafM, trees, place, leafCol); l1.castShadow = true;
     mk(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0x77736b, roughness: 0.95, flatShading: true }), rocks, (t, p, sc, e) => { p.set(t[0], t[1] + t[3] * 0.2, t[2]); sc.set(t[3], t[3] * 0.7, t[3] * 1.2); e.set(t[4], t[4] * 2, t[4] * 0.5); }).receiveShadow = true;
-    // track marker posts (glowing, colour per track) + jump lip beacons
+
+    // glowing track posts + jump beacons + start arches
     const posts = [], pc = [];
     Roam.tracks().forEach(tr => {
       const col = new THREE.Color(tr.color).multiplyScalar(2.2);
       for (let k = 0; k < tr.pts.length; k += 22) { const p = tr.pts[k], nx = -Math.sin(p.psi), nz = Math.cos(p.psi), o = tr.width + 2.2; for (const sd of [-1, 1]) { posts.push([p.x + nx * o * sd, Roam.h(p.x + nx * o * sd, p.z + nz * o * sd), p.z + nz * o * sd, 1, 0]); pc.push(col); } }
       for (const j of tr.jumps) { const p = tr.pts[Math.min(tr.pts.length - 1, Math.round(j.s))], nx = -Math.sin(p.psi), nz = Math.cos(p.psi); for (const sd of [-1, 1]) { posts.push([p.x + nx * 7 * sd, Roam.h(p.x + nx * 7 * sd, p.z + nz * 7 * sd), p.z + nz * 7 * sd, 2.6, 0]); pc.push(new THREE.Color(1.8, 1.8, 1.8)); } }
+      // start arch with the track name
+      const p = tr.pts[2], nx = -Math.sin(p.psi), nz = Math.cos(p.psi), hw = tr.width + 3, ac = new THREE.Color(tr.color);
+      const arch = new THREE.Group(); arch.position.set(p.x, p.y, p.z); arch.rotation.y = -p.psi;
+      const am = new THREE.MeshStandardMaterial({ color: 0x1a1d26, roughness: 0.5, metalness: 0.6 });
+      for (const sd of [-1, 1]) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.6, 8, 0.6), am); pl.position.set(0, 4, sd * hw); arch.add(pl); }
+      const bm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, hw * 2 + 1.2), am); bm.position.y = 8; arch.add(bm);
+      const sg = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2 - 0.4, 1.2), new THREE.MeshBasicMaterial({ map: canvasTex(512, 64, (cg, w, h) => { cg.fillStyle = '#0b0d12'; cg.fillRect(0, 0, w, h); cg.fillStyle = tr.color; cg.fillRect(0, h - 8, w, 8); cg.fillStyle = '#fff'; cg.font = '800 38px sans-serif'; cg.textAlign = 'center'; cg.textBaseline = 'middle'; cg.fillText(tr.name, w / 2, h / 2 - 3); }), toneMapped: false }));
+      sg.position.set(0.4, 8, 0); sg.rotation.y = Math.PI / 2; arch.add(sg); const sg2 = sg.clone(); sg2.position.x = -0.4; sg2.rotation.y = -Math.PI / 2; arch.add(sg2); g.add(arch);
     });
     const pm = mk(new THREE.CylinderGeometry(0.1, 0.12, 1.6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), posts, (t, p, sc, e) => { p.set(t[0], t[1] + 0.8 * t[3], t[2]); sc.set(1, t[3], 1); e.set(0, 0, 0); });
     pc.forEach((cc, i) => pm.setColorAt(i, cc)); if (pm.instanceColor) pm.instanceColor.needsUpdate = true;
+
+    // ---------- FESTIVAL ----------
+    const fx = ZN.fest[0], fz = ZN.fest[1], fy = Roam.h(fx, fz);
+    const stg = new THREE.Group(), sx = ZN.stage[0], sz = ZN.stage[1]; stg.position.set(sx, Roam.h(sx, sz), sz); stg.rotation.y = Math.PI * 0.75;   // front faces the crowd (towards the peak)
+    const dark = new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.55, metalness: 0.5 }), floorM = new THREE.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.6, metalness: 0.2 });
+    const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; stg.add(o); return o; };
+    add(new THREE.BoxGeometry(14, 1.6, 26), floorM, 0, 0.8, 0);
+    add(new THREE.BoxGeometry(1, 13, 26), dark, -6.5, 8, 0);                                    // back wall
+    add(new THREE.BoxGeometry(14, 0.9, 28), dark, 0, 14.6, 0);                                  // roof
+    for (const z of [-13, 13]) for (const x of [-6.5, 6.5]) add(new THREE.BoxGeometry(0.7, 14, 0.7), dark, x, 7.6, z);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(22, 9), new THREE.MeshBasicMaterial({ map: canvasTex(1024, 420, (cg, w, h) => { const gr = cg.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#ff2f92'); gr.addColorStop(0.5, '#ff5a1f'); gr.addColorStop(1, '#27e0ff'); cg.fillStyle = gr; cg.fillRect(0, 0, w, h); cg.fillStyle = 'rgba(0,0,0,.35)'; cg.fillRect(0, 0, w, h); cg.fillStyle = '#fff'; cg.font = '900 110px sans-serif'; cg.textAlign = 'center'; cg.textBaseline = 'middle'; cg.fillText('AIRBORNE', w / 2, h * 0.36); cg.fillText('INSANITY MX', w / 2, h * 0.7); }), toneMapped: false }));
+    scr.position.set(-5.9, 8.6, 0); scr.rotation.y = Math.PI / 2; stg.add(scr);
+    const lc = [0xff2f92, 0x27e0ff, 0xffd400, 0x7dff5a];
+    for (let i = 0; i < 12; i++) { const L = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(lc[i % 4]).multiplyScalar(3) })); L.position.set(5.8, 13.7, -11.5 + i * 2.1); stg.add(L); }
+    for (const z of [-9, 9]) add(new THREE.BoxGeometry(2.4, 4.6, 2.6), dark, 3, 3.9, z);          // speaker stacks
+    g.add(stg);
+    const fw = (a) => ({ x: fx + Math.cos(a), z: fz + Math.sin(a) });
+    // tents
+    const tents = []; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + 0.2, r = 52 + rr(i, 1, 9) * 14, x = fx + Math.cos(a) * r, z = fz + Math.sin(a) * r; if (Math.hypot(x - sx, z - sz) < 26 || Math.hypot(x - ZN.lake[0], z - ZN.lake[1]) < ZN.lake[2] + 10) continue; tents.push([x, Roam.h(x, z), z, 1 + rr(i, 2, 9) * 0.6, a]); }
+    const tcol = [0xff5a1f, 0x27e0ff, 0xffd400, 0xff2f92, 0xffffff, 0x7dff5a];
+    mk(new THREE.BoxGeometry(4, 1.8, 4).translate(0, 0.9, 0), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.9 }), tents, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(t[3], t[3], t[3]); e.set(0, t[4], 0); }).castShadow = true;
+    mk(new THREE.ConeGeometry(3.4, 2.6, 4).translate(0, 3.1, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), tents, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(t[3], t[3], t[3]); e.set(0, t[4] + Math.PI / 4, 0); }, (t, i) => new THREE.Color(tcol[i % 6])).castShadow = true;
+    // food stalls
+    const stalls = []; for (let i = 0; i < 9; i++) { const a = 3.55 + i * 0.2, r = 34, x = fx + Math.cos(a) * r, z = fz + Math.sin(a) * r; stalls.push([x, Roam.h(x, z), z, 1, a + Math.PI / 2]); }
+    mk(new THREE.BoxGeometry(3.4, 2.4, 2.4).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), stalls, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(1, 1, 1); e.set(0, -t[4], 0); }, (t, i) => new THREE.Color(tcol[(i + 2) % 6]).multiplyScalar(0.8)).castShadow = true;
+    mk(new THREE.BoxGeometry(3.8, 0.15, 1.8).translate(0, 2.7, 1.8), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), stalls, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(1, 1, 1); e.set(0, -t[4], 0); }, (t, i) => new THREE.Color(tcol[(i + 4) % 6]));
+    // flags: poles ringing the plateau + along the festival run
+    const flags = []; for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2, r = 70, x = fx + Math.cos(a) * r, z = fz + Math.sin(a) * r; if (Math.hypot(x - ZN.lake[0], z - ZN.lake[1]) < ZN.lake[2] + 6) continue; flags.push([x, Roam.h(x, z), z, 1, a]); }
+    mk(new THREE.CylinderGeometry(0.07, 0.09, 9, 5).translate(0, 4.5, 0), new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.6, roughness: 0.4 }), flags, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(1, 1, 1); e.set(0, 0, 0); });
+    mk(new THREE.PlaneGeometry(2.4, 1.5).translate(1.3, 8.2, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.7, emissive: 0x222222 }), flags, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(1, 1, 1); e.set(0, t[4] * 3, 0); }, (t, i) => new THREE.Color(tcol[i % 6]));
+    // crowd in front of the stage
+    const crowd = []; const cdir = [-Math.SQRT1_2, -Math.SQRT1_2], cper = [Math.SQRT1_2, -Math.SQRT1_2];
+    for (let i = 0; i < 700; i++) { const f = 8 + rr(i, 1, 13) * 34, l = (rr(i, 2, 13) - 0.5) * 2 * (16 + f * 0.25), x = sx + cdir[0] * f + cper[0] * l, z = sz + cdir[1] * f + cper[1] * l; if (Math.hypot(x - ZN.lake[0], z - ZN.lake[1]) < ZN.lake[2] + 6) continue; crowd.push([x, Roam.h(x, z), z, 0.9 + rr(i, 3, 13) * 0.2, rr(i, 4, 13)]); }
+    const ccol = [0xff5a1f, 0x27e0ff, 0xffd400, 0xff2f92, 0xffffff, 0x2a2d38, 0x7dff5a, 0x6a5acd];
+    mk(new THREE.CylinderGeometry(0.26, 0.3, 1.25, 6).translate(0, 0.65, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), crowd, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(t[3], t[3], t[3]); e.set(0, t[4] * 6, 0); }, (t, i) => new THREE.Color(ccol[i % 8]));
+    mk(new THREE.SphereGeometry(0.2, 6, 5).translate(0, 1.55, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), crowd, (t, p, sc, e) => { p.set(t[0], t[1], t[2]); sc.set(t[3], t[3], t[3]); e.set(0, 0, 0); }, (t) => new THREE.Color(0.55 + t[4] * 0.35, 0.38 + t[4] * 0.25, 0.28 + t[4] * 0.2));
+
     scene.add(g); tiles.push(g);
     buildEnv(th); W.mapDef = { id: 'roam' };
   };
@@ -2586,10 +2675,15 @@ const Game = (() => {
   G_.loadMap = loadMap;
   function loadRoam() { if (mapId !== 'roam') { World.loadRoam(); mapId = 'roam'; } }
   function roamUpdate(e, dt) {
-    const rs = session.roamS; if (!rs || session.track < 0) return;
+    const rs = session.roamS; if (!rs) return;
+    { // announce the zone you ride into
+      let bz = null, bd = 1e9; for (const z of Roam.zones.zones) { const d = Math.hypot(z[1] - e.rr.wx, z[2] - e.rr.wz); if (d < bd) { bd = d; bz = z[0]; } }
+      if (bz !== rs.zone) { if (rs.zone) msgBig(bz, 'ENTERING', 'good', 2.2); rs.zone = bz; $('hMap').textContent = session.track >= 0 ? Roam.tracks()[session.track].name : bz; }
+    }
+    if (session.track < 0) return;
     const tr = Roam.tracks()[session.track], n = tr.pts.length, rr = e.rr;
     let best = 1e9, bk = rs.k;
-    for (let d = -6; d <= 24; d++) { const k = (rs.k + d + n) % n, q = tr.pts[k], dd = Math.hypot(q.x - rr.wx, q.z - rr.wz); if (dd < best) { best = dd; bk = k; } }
+    for (let d = -6; d <= 24; d++) { const k = tr.closed ? (rs.k + d + n) % n : Math.max(0, Math.min(n - 1, rs.k + d)), q = tr.pts[k], dd = Math.hypot(q.x - rr.wx, q.z - rr.wz); if (dd < best) { best = dd; bk = k; } }
     rs.off = best;
     if (best < 45) { let dk = bk - rs.k; if (dk > n / 2) dk -= n; if (dk < -n / 2) dk += n; if (Math.abs(dk) <= 30) { rs.passed += dk; rs.k = bk; } }
     else if (!e.crashed) msg('OFF TRACK - RETURN TO THE LINE', 0.25);
@@ -2600,7 +2694,7 @@ const Game = (() => {
     Aud.init(); Aud.setVol(S.settings.vol, S.settings.music);
     session = Object.assign({ mode: 'free', map: 'arena', time: 120, laps: 2, ai: 4, level: 0.85, aiBike: 2, tier: 1, startX: 8, reward: 1000, online: false }, opts);
     session.t = 0; session.ended = false; session.cdN = 99;
-    if (session.roam) { loadRoam(); session.map = 'roam'; } else { RC = null; loadMap(session.map); }
+    if (session.roam) { loadRoam(); session.map = 'roam'; if (session.track >= 0 && !Roam.tracks()[session.track].closed) session.laps = 1; } else { RC = null; loadMap(session.map); }
     if (showcase) { destroyEntity(showcase); showcase = null; }
     ais.forEach(destroyEntity); ais = [];
     if (player) destroyEntity(player);
@@ -2638,7 +2732,7 @@ const Game = (() => {
     state = 'countdown'; session.cd = 3.2; showFade(false);
     timeScale = 1; World.post.flash = 0;
     $('hHint').classList.add('on'); setTimeout(() => $('hHint').classList.remove('on'), 9000);
-    $('hMap').textContent = session.roam ? (session.track >= 0 ? Roam.tracks()[session.track].name : 'OPEN WORLD') : (MAPS.find(m => m.id === session.map) || {}).name || '';
+    $('hMap').textContent = session.roam ? (session.track >= 0 ? Roam.tracks()[session.track].name : 'THE PEAK') : (MAPS.find(m => m.id === session.map) || {}).name || '';
     { const c = $('hProfile'), rm = !!session.roam; c.width = rm ? 340 : 600; c.height = rm ? 340 : 140; }
     $('hMode').textContent = ({ roam: 'FREE ROAM', free: 'FREE RIDE', freestyle: 'FREESTYLE', race: 'RACE', trial: 'TIME ATTACK' })[session.mode] || '';
     $('hTitleCard').classList.add('on'); setTimeout(() => $('hTitleCard').classList.remove('on'), 3000);
@@ -3221,13 +3315,13 @@ const Net = (() => {
 
   /* ---------- QUICK PLAY ---------- */
   const MODES = [['roam', 'FREE ROAM', 'Open world. Ride anywhere, hit the hills, or take on a marked track.'], ['free', 'FREE RIDE', 'Ride at your own pace. No timer, no rules.'], ['freestyle', 'FREESTYLE', 'Score as much as you can before the clock runs out.'], ['race', 'RACE', 'Beat the AI riders over a number of laps.'], ['trial', 'TIME ATTACK', 'Chase the fastest lap time on your own.']];
-  function drawRoamThumb(c, hi) { Roam.drawMap(c.getContext('2d'), c.width, c.height, hi); }
+  function drawRoamThumb(c, hi) { Roam.drawMap(c.getContext('2d'), c.width, c.height, hi, hi < 0); }
   function renderPlay() {
     if (mode === 'roam') {
       if (!Roam.built) Roam.build();
       const T = Roam.tracks();
       $('modeTabs').innerHTML = MODES.map(m => '<button data-m="' + m[0] + '" class="' + (m[0] === mode ? 'on' : '') + '">' + m[1] + '</button>').join('');
-      $('mapGrid').innerHTML = [['OPEN WORLD', 'FREE ROAM · 1 KM²', -1]].concat(T.map((t, i) => [t.name, 'TIME TRIAL · ' + Math.round(t.len) + ' M', i])).map(m => '<div class="map-card ' + (m[2] === rTrack ? 'on' : '') + '" data-rt="' + m[2] + '" tabindex="0"><div class="thumb"><canvas width="380" height="210" data-hi="' + m[2] + '"></canvas></div><div class="meta"><b>' + m[0] + '</b><span>' + m[1] + '</span></div></div>').join('');
+      $('mapGrid').innerHTML = [['THE BIG HILL', 'FREE ROAM · 1 KM²', -1]].concat(T.map((t, i) => [t.name, (t.closed ? 'CIRCUIT · ' : 'DOWNHILL · ') + Math.round(t.len) + ' M', i])).map(m => '<div class="map-card ' + (m[2] === rTrack ? 'on' : '') + '" data-rt="' + m[2] + '" tabindex="0"><div class="thumb"><canvas width="380" height="210" data-hi="' + m[2] + '"></canvas></div><div class="meta"><b>' + m[0] + '</b><span>' + m[1] + '</span></div></div>').join('');
       $$('#mapGrid canvas').forEach(c => drawRoamThumb(c, +c.dataset.hi));
       renderRoamSide(); return;
     }
@@ -3238,10 +3332,10 @@ const Net = (() => {
   }
   function renderRoamSide() {
     const T = Roam.tracks(), t = rTrack >= 0 ? T[rTrack] : null, key = 'roam:trial:' + rTrack, bl = S.bestLaps[key + ':lap'];
-    $('playSide').innerHTML = '<div class="body"><div class="eyebrow">' + (t ? 'TIME TRIAL' : 'FREE ROAM') + '</div><h2>' + (t ? t.name : 'Open World') + '</h2><p class="blurb">' +
-      (t ? 'A marked circuit cut through the hills: berms, kickers, doubles and whoops. Follow the glowing posts and set a lap time.' : 'A kilometre of hills, ridges and four glowing circuits. Ride anywhere, hit jumps, chain tricks and earn cash.') + '</p>' +
+    $('playSide').innerHTML = '<div class="body"><div class="eyebrow">' + (t ? 'TIME TRIAL' : 'FREE ROAM') + '</div><h2>' + (t ? t.name : 'The Big Hill') + '</h2><p class="blurb">' +
+      (t ? 'A marked circuit cut through the hills: berms, kickers, doubles and whoops. Follow the glowing posts and set a lap time.' : 'One big hill. Start on the peak and ride down through the forest trails and the jump zone to the festival and the lake. Ride anywhere, hit jumps, chain tricks and earn cash.') + '</p>' +
       '<div class="kv"><span class="k">YOUR BIKE</span><span class="v">' + BIKE_BY_ID[S.selected].name + '</span>' + (t ? '<span class="k">LENGTH</span><span class="v">' + Math.round(t.len) + ' M</span><span class="k">JUMPS</span><span class="v">' + t.jumps.length + '</span><span class="k">PERSONAL BEST</span><span class="v">' + (bl ? Game.fmtTime(bl) : '—') + '</span>' : '') + '</div>' +
-      (t ? '<div class="kv"><span class="k">LAPS</span>' + seg('laps', [1, 2, 3], opt.laps) + '</div>' : '') + '</div><div class="foot"><button class="btn primary big" id="goPlay" style="flex:1">START</button></div>';
+      (t && t.closed ? '<div class="kv"><span class="k">LAPS</span>' + seg('laps', [1, 2, 3], opt.laps) + '</div>' : '') + '</div><div class="foot"><button class="btn primary big" id="goPlay" style="flex:1">START</button></div>';
   }
   function seg(key, vals, cur, fmtFn) { return '<div class="seg" data-opt="' + key + '">' + vals.map(v => '<button data-v="' + v + '" class="' + (v === cur ? 'on' : '') + '">' + (fmtFn ? fmtFn(v) : v) + '</button>').join('') + '</div>'; }
   function renderPlaySide() {
