@@ -1038,22 +1038,38 @@ Sim.prototype.step = function (dt, inp) {
       if (isRear) { s.compR = 0; s.fnR = 0; s.slipR = 0; } else { s.compF = 0; s.fnF = 0; s.slipF = 0; }
     }
     om *= 1 - 0.04 * dt;
-    // angular momentum exchange between wheel and frame
+    // Angular momentum exchange between wheel and frame. Reduce the exaggerated
+    // airborne gyro kick so throttle/brake wheel-speed changes help pitch control
+    // instead of randomly throwing the bike into a rotation.
     const dL = B.Iw * (om - om0) / dt;
-    Tq += dL * (contact ? 1 : B.gyro);
-    if (!contact && isRear) s.gyroT = dL * B.gyro;
+    const gyroScale = contact ? 1 : B.gyro * 0.58;
+    Tq += dL * gyroScale;
+    if (!contact && isRear) s.gyroT = dL * gyroScale;
     if (isRear) { s.wr = om; s.contactR = contact; } else { s.wf = om; s.contactF = contact; }
   }
 
-  // rider weight shift
+  // Rider weight shift and deliberate mid-air pitch control.
+  // Arrow Up/Down (or the gamepad right stick) shifts the rider's mass.
+  // In the air, that shift produces a stronger, speed-aware pitch moment,
+  // while angular damping prevents endless, uncontrollable spinning.
   s.grounded = s.airT < 0.05;
-  const lean = s.wreck ? 0 : inp.lean;
-  Tq += lean * (s.grounded ? B.gndTq : B.airTq);
-  Tq -= (s.grounded ? 40 : 14) * s.w;
+  const lean = s.wreck ? 0 : clamp(inp.lean || 0, -1, 1);
+  const airSpeed = Math.hypot(s.vx, s.vy);
+  if (s.grounded) {
+    Tq += lean * B.gndTq;
+    Tq -= 40 * s.w;
+  } else {
+    const flightAuthority = 0.82 + 0.38 * clamp(airSpeed / 24, 0, 1);
+    Tq += lean * B.airTq * flightAuthority;
+    // A little less damping while actively pitching; more when hands-off.
+    const airDamping = 19 + 9 * (1 - Math.abs(lean));
+    Tq -= airDamping * s.w;
+  }
 
   s.vx += Fx / B.m * dt; s.vy += Fy / B.m * dt;
   s.w += Tq / B.I * dt;
-  if (s.w > 9) s.w = 9; else if (s.w < -9) s.w = -9;
+  // Keep the angular rate controllable without hard-snapping the bike's attitude.
+  if (s.w > 7.2) s.w = 7.2; else if (s.w < -7.2) s.w = -7.2;
   s.x += s.vx * dt; s.y += s.vy * dt; s.a += s.w * dt;
   if (lift > 0) { s.y += lift; if (s.vy < 0) s.vy *= 0.5; }
 
