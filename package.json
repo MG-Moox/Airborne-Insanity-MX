@@ -1,0 +1,12 @@
+{
+  "name": "airborne-insanity-mx",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dirt Yeet physics game",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
