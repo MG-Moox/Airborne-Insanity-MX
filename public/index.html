@@ -527,6 +527,12 @@ clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
 #s-play .map-card .meta span{color:#d3e4d9}
 #s-play .map-card.on{border-color:#c6ff28;box-shadow:0 0 0 2px rgba(198,255,40,.45),0 18px 38px rgba(0,0,0,.4)}
 /* ===== END MAJOR HOME SCREEN REWORK ===== */
+
+/* ===== SATURATED ALPINE OPEN WORLD / LOWER EXPOSURE ===== */
+#s-home{filter:saturate(1.24) brightness(.88)}
+#s-play .map-card{filter:saturate(1.3) brightness(.86)}
+#s-play .map-card canvas{filter:saturate(1.55) contrast(1.16) brightness(.78)}
+/* ===== END ALPINE WORLD PASS ===== */
 </style>
 </head>
 <body>
@@ -1114,13 +1120,16 @@ const Roam = (() => {
     const a = hash(ix, iz, s), b = hash(ix + 1, iz, s), c = hash(ix, iz + 1, s), d = hash(ix + 1, iz + 1, s);
     return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fz;
   }
-  const fbm = (x, z, s) => (vnoise(x / 340, z / 340, s) - 0.5) * 24 + (vnoise(x / 145, z / 145, s + 1) - 0.5) * 10 + (vnoise(x / 58, z / 58, s + 2) - 0.5) * 5.5 + (vnoise(x / 22, z / 22, s + 3) - 0.5) * 1.5;
+  const fbm = (x, z, s) => (vnoise(x / 340, z / 340, s) - 0.5) * 28 + (vnoise(x / 145, z / 145, s + 1) - 0.5) * 13 + (vnoise(x / 58, z / 58, s + 2) - 0.5) * 7 + (vnoise(x / 22, z / 22, s + 3) - 0.5) * 2;
 
   /* natural ground height (before trails are carved) */
   function baseH(x, z) {
     const d = (x + z) / 2048, t = Math.max(0, 1 - d);
-    let h = 108 * t * t;
-    const pk = Math.hypot(x - ZN.peak[0], z - ZN.peak[1]); h += 56 * Math.exp(-(pk * pk) / (2 * 112 * 112));
+    let h = 118 * t * t;
+    // Alpine skyline: several jagged ridges behind the main summit, not one smooth hill.
+    const pk = Math.hypot(x - ZN.peak[0], z - ZN.peak[1]); h += 76 * Math.exp(-(pk * pk) / (2 * 100 * 100));
+    for (const p of [[90,210,54,48],[220,95,48,44],[285,205,42,40],[130,300,38,38],[330,120,34,34]]) { const d = Math.hypot(x-p[0],z-p[1]); h += p[2] * Math.exp(-(d*d)/(2*p[3]*p[3])); }
+    const ridge = Math.max(0, 1 - Math.hypot(x-180,z-170)/235); h += ridge * (Math.sin((x+z)*0.075)*5 + Math.sin(x*0.12-z*0.09)*3);
     h += fbm(x, z, 11) * (0.3 + 0.9 * t);
     const e = Math.max(Math.abs(x - 512), Math.abs(z - 512)), rim = Math.max(0, e - 455); h += rim * rim * 0.05;      // mountain border
     const fd = Math.hypot(x - ZN.fest[0], z - ZN.fest[1]); h += (4 - h) * (1 - sstep(clamp01((fd - ZN.fest[2]) / 60)));   // festival plateau
@@ -2010,7 +2019,7 @@ const World = (() => {
     scene.background = new THREE.Color(th.fog); scene.fog = new THREE.Fog(th.fog, th.fogNear, th.fogFar);
     hemi.color.setHex(th.hemiSky); hemi.groundColor.setHex(th.hemiGround); hemi.intensity = th.hemiI;
     sun.color.setHex(th.sun); sun.intensity = th.sunI; rim.color.setHex(th.rim);
-    post.bloom = th.bloom; post.exposure = th.exposure; post.tint.set(1.03, 1.0, 0.96);
+    post.bloom = Math.min(th.bloom, 0.24); post.exposure = Math.min(th.exposure, 0.78); post.tint.set(0.92, 1.02, 0.86);
     bikeLight.color.setHex(0xffe0b0);
     const g = new THREE.Group(), N = Roam.N, SIZE = Roam.SIZE, MASK = Roam.mask();
     const CH = 8, CS = SIZE / CH, STR = 2, seg = CS / STR;
@@ -2028,11 +2037,11 @@ const World = (() => {
         const no = Math.sin(wx * 0.11) * Math.sin(wz * 0.093) * 0.5 + Math.sin(wx * 0.37 + wz * 0.29) * 0.25;
         const steep = Math.min(1, Math.max(0, (1 - nrm[1] - 0.12) / 0.22));
         const dz = (wx + wz) / 2048, dry = Math.min(1, Math.max(0, (h - 2 + no * 4) / 40));
-        c.setRGB(0.19 + 0.2 * dry + no * 0.04, 0.34 + 0.05 * dry + no * 0.05, 0.12 + 0.05 * dry);       // grass -> dry grass
+        c.setRGB(0.105 + 0.12 * dry + no * 0.025, 0.285 + 0.045 * dry + no * 0.035, 0.075 + 0.025 * dry);       // saturated deep alpine grass, restrained highlights
         const forest = Math.min(1, Math.max(0, 1 - Math.abs(dz - 0.45) / 0.17));                           // forest floor (darker, needles)
         if (forest > 0) { cNeedle.setRGB(0.13 + no * 0.02, 0.22 + no * 0.03, 0.09); c.lerp(cNeedle, forest * 0.7); }
         c.lerp(cRock, steep * (0.5 + 0.5 * Math.min(1, h / 40)));
-        const snow = Math.min(1, Math.max(0, (h - 80) / 16)); if (snow > 0) c.lerp(cSnow, snow * (1 - steep * 0.5));
+        const snow = Math.min(1, Math.max(0, (h - 67) / 17)); if (snow > 0) { const cap = snow * (1 - steep * 0.34); c.lerp(cSnow, cap); if (h > 82 && steep > 0.2) c.lerp(new THREE.Color(0.82,0.86,0.88), 0.25); }
         const ld = Math.hypot(wx - ZN.lake[0], wz - ZN.lake[1]); if (ld < ZN.lake[2] + 38 && h < 1.6) c.lerp(cSand, Math.min(1, (1.6 - h) / 1.2));
         const fd = Math.hypot(wx - ZN.fest[0], wz - ZN.fest[1]); if (fd < ZN.fest[2] + 8) c.lerp(cFest, 0.75 * (1 - Math.min(1, Math.max(0, (fd - ZN.fest[2] + 20) / 28))));
         const rut = 0.5 + 0.5 * Math.sin(wx * 0.9 + wz * 1.3); cDirt.setRGB(0.42 + rut * 0.04, 0.26 + rut * 0.03, 0.15);
