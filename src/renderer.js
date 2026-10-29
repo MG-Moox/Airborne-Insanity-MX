@@ -25,13 +25,26 @@ void main(){
   if (uTerrain > 0.5) {
     vec2 wp = vLocal.xz + uOrigin;
     float dd = length(vRel);
-    float f1 = 1.0 - smoothstep(30.0, 110.0, dd), f2 = 1.0 - smoothstep(8.0, 38.0, dd);
-    float g = vn(wp*0.22)*0.55 + vn(wp*0.9)*0.3*f1 + vn(wp*3.1)*0.25*f1 + vn(wp*11.0)*0.22*f2;
-    col *= 0.74 + 0.5*g;
+    float f1 = 1.0 - smoothstep(30.0, 120.0, dd), f2 = 1.0 - smoothstep(6.0, 40.0, dd), f3 = 1.0 - smoothstep(60.0, 220.0, dd);
+    float px = max(fwidth(wp.x), fwidth(wp.y));                       // world metres per pixel: fade octaves that would alias
+    float a1 = 1.0 - smoothstep(0.12, 0.4, px*1.9), a2 = 1.0 - smoothstep(0.12, 0.4, px*6.3), a3 = 1.0 - smoothstep(0.12, 0.4, px*13.0), a4 = 1.0 - smoothstep(0.12, 0.4, px*2.9), a5 = 1.0 - smoothstep(0.12, 0.4, px*9.0);
+    float dirt = smoothstep(0.03, 0.14, vCol.r - vCol.g);
+    float g = vn(wp*0.15)*0.5 + vn(wp*0.7)*0.3*f1 + vn(wp*2.9)*0.28*f1*a4 + vn(wp*9.0)*0.26*f2*a5;
+    float blades = (vn(wp*13.0)*0.6 + vn(wp*31.0)*0.4*a3);
+    float pebbles = step(0.82, vn(wp*7.0 + 3.1)) * a5;
+    float patchN = vn(wp*0.035);
+    col *= 0.68 + 0.62*g;
+    col *= mix(1.0 + (blades-0.5)*0.45*f2*a3, 1.0 + (pebbles*0.5 - 0.15)*0.3*f2 + (blades-0.5)*0.3*f2*a3, dirt);
+    col = mix(col, col*vec3(1.12,1.04,0.78), smoothstep(0.45,0.75,patchN)*(1.0-dirt)*f3);
+    col = mix(col, col*vec3(0.82,1.0,0.86), smoothstep(0.4,0.15,patchN)*(1.0-dirt)*f3);
+    float e = 0.3, b0 = vn(wp*1.9)*0.6 + vn(wp*6.3)*0.4*a2;
+    float bx = vn((wp+vec2(e,0.0))*1.9)*0.6 + vn((wp+vec2(e,0.0))*6.3)*0.4*a2;
+    float bz = vn((wp+vec2(0.0,e))*1.9)*0.6 + vn((wp+vec2(0.0,e))*6.3)*0.4*a2;
+    n = normalize(n + vec3(b0-bx, 0.0, b0-bz) * (0.9 + 1.4*dirt) * f2 * a1);
   }
   float d = max(dot(n, uSun), 0.0);
   float hemi = 0.5 + 0.5*n.y;
-  vec3 light = vec3(0.50,0.58,0.72)*hemi*0.80 + vec3(1.0,0.92,0.78)*d*0.95;
+  vec3 light = vec3(0.46,0.55,0.72)*hemi*0.78 + vec3(1.0,0.9,0.72)*d*1.12;
   col *= light;
   float dist = length(vRel);
   float f = clamp((dist - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);

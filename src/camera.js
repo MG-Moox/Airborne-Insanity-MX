@@ -75,8 +75,8 @@ export class Camera {
       if (crashed) { this.crashSpin += dt * 0.35; } else this.crashSpin *= Math.exp(-dt * 2);
       const ya = this.yaw + this.yawOff + this.crashSpin;
       const dir = [-Math.sin(ya), 0, -Math.cos(ya)];
-      let dist = (close ? 3.1 + sp * 0.03 : 4.7 + sp * 0.075) * (air ? 1.12 : 1) * (crashed ? 1.45 : 1);
-      let h = (close ? 1.05 : 1.75 + sp * 0.01) + this.pitchOff * 3.5 + (air ? 0.5 : 0);
+      let dist = (close ? 3.1 + sp * 0.03 : 5.0 + sp * 0.075) * (air ? 1.12 : 1) * (crashed ? 1.45 : 1);
+      let h = (close ? 1.3 : 2.05 + sp * 0.01) + this.pitchOff * 3.5 + (air ? 0.5 : 0);
       const look = Math.min(4.5, hsp * 0.12);
       target = [bike.pos[0] + bike.v[0] * 0.08 + dir[0] * look, bike.pos[1] + 0.65 + (air ? -0.2 : 0), bike.pos[2] + bike.v[2] * 0.08 + dir[2] * look];
       const want = [bike.pos[0] - dir[0] * dist, bike.pos[1] + h, bike.pos[2] - dir[2] * dist];

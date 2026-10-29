@@ -16,9 +16,10 @@ function terrainColor(x, z, h, n) {
   const dirtW = Math.min(1, Math.max(0, (r - b - 0.09) / 0.12)) * T.sstep(0.34, 0.5, v) * T.sstep(0.18, 0.3, sat);
   const rockW = Math.max(0, 1 - sat / 0.22) * T.sstep(0.2, 0.32, v) * (1 - T.sstep(0.65, 0.8, v)) * (1 - dirtW);
   const dn = T.fbm(x * 0.05, z * 0.05, 2);
-  const forest = [0.1 + 0.03 * dn, 0.2 + 0.05 * dn, 0.08], meadow = [0.3 + 0.05 * dn, 0.48 + 0.06 * dn, 0.16];
+  const lush = T.fbm(x * 0.011 + 40, z * 0.011, 2);
+  const forest = [0.09 + 0.04 * dn, 0.19 + 0.06 * dn, 0.07], meadow = mix3([0.24, 0.5, 0.12], [0.5, 0.55, 0.17], T.sstep(0.35, 0.7, lush)).map((q, i) => q + (i === 1 ? 0.07 : 0.05) * (dn - 0.5));
   let col = mix3(forest, meadow, T.sstep(0.22, 0.46, v));
-  col = mix3(col, [0.6 + 0.05 * dn, 0.44 + 0.04 * dn, 0.28], dirtW);
+  col = mix3(col, [0.62 + 0.07 * dn, 0.42 + 0.05 * dn, 0.24 + 0.03 * dn], dirtW);
   col = mix3(col, [0.46, 0.45, 0.44], Math.max(rockW * 0.75, T.sstep(230, 340, h) * 0.65));
   // rock on steep faces
   const rock = [0.43, 0.41, 0.39];
@@ -26,8 +27,8 @@ function terrainColor(x, z, h, n) {
   if (steep > 0) col = mix3(col, rock, steep * 0.88);
   // snow near the summit
   const sn = T.fbm(x * 0.02, z * 0.02, 3) * 40;
-  const snow = T.sstep(360, 470, h + sn) * (0.35 + 0.65 * T.sstep(0.45, 0.85, n[1]));
-  if (snow > 0) col = mix3(col, [0.78, 0.82, 0.9], snow);
+  const snow = T.sstep(335, 430, h + sn) * (0.35 + 0.65 * T.sstep(0.45, 0.85, n[1]));
+  if (snow > 0) col = mix3(col, [0.86, 0.89, 0.95], snow);
   // lake / river beds
   if (h < T.LAKE_LEVEL + 0.6 && T.waterLevelAt(x, z) > -1e8) col = mix3(col, [0.2, 0.3, 0.3], 0.85);
   else if (h < 0.5) col = mix3(col, [0.62, 0.55, 0.38], 0.5);
@@ -42,6 +43,8 @@ function addTree(g, t, ox, oz) {
   const tint = t.y > 300 ? T.sstep(300, 420, t.y) : 0;
   const base = mix3([0.07 + 0.06 * s, 0.22 + 0.12 * s, 0.1 + 0.05 * s], [0.18, 0.3, 0.3], tint * 0.7);
   const dark = base.map((v) => v * 0.78);
+  { const rr = H * (t.kind === 0 ? 0.22 : 0.26), sh = [0.1, 0.2, 0.07], yy = y + 0.3;
+    for (let k = 0; k < 8; k++) { const a0 = (k / 8) * 6.283, a1 = ((k + 1) / 8) * 6.283; g.tri([x, yy, z], [x + Math.sin(a1) * rr, yy, z + Math.cos(a1) * rr], [x + Math.sin(a0) * rr, yy, z + Math.cos(a0) * rr], sh); } }
   const snowy = [0.88, 0.92, 0.95];
   if (t.kind === 0) {
     g.cyl(0.14, 0.22, H * 0.3, 5, [0.3, 0.2, 0.12], m4translate(x, y + H * 0.15, z), false);
@@ -75,11 +78,37 @@ export class World {
     this.r.fogRange = [far * 0.45, far * 1.0];
   }
 
+  // grass tufts and wildflowers: tiny geometry that gives the ground scale and depth
+  _scatter(g, cx, cz, ox, oz) {
+    const N = 34, cell = CH / N;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x = ox + (i + T.hash2(cx * N + i, cz * N + j, 41)) * cell, z = oz + (j + T.hash2(cx * N + i, cz * N + j, 42)) * cell;
+      const h = T.heightAt(x, z);
+      if (h < 1 || h > 300 || T.borderSD(x, z) < 3 || T.waterLevelAt(x, z) > -1e8 || T.onDeck(x, z)) continue;
+      const c = T.mapColor(...T.toMap(x, z)), v = Math.max(c[0], c[1], c[2]), isDirt = c[0] - c[2] > 0.12 && v > 0.4;
+      if (isDirt) continue;
+      const nn = T.normalAt(x, z, 1); if (nn[1] < 0.8) continue;
+      if (T.COLLIDERS.length && T.nearbyColliders(x, z, 1.5).length) continue;
+      const r1 = T.hash2(i, j, cx * 7 + cz), lx = x - ox, lz = z - oz;
+      const gcol = [0.2 + 0.2 * r1, 0.42 + 0.2 * r1, 0.1 + 0.05 * r1];
+      const hh = 0.35 + 0.35 * T.hash2(i, j, 43), a0 = r1 * 6.28;
+      for (let k = 0; k < 4; k++) {
+        const a = a0 + k * 1.57, bx = lx + Math.cos(a) * 0.1, bz = lz + Math.sin(a) * 0.1;
+        g.tri([bx - 0.07, h, bz], [bx + 0.07, h, bz], [bx + Math.cos(a) * 0.14, h + hh, bz + Math.sin(a) * 0.14], gcol);
+        g.tri([bx + 0.07, h, bz], [bx - 0.07, h, bz], [bx + Math.cos(a) * 0.14, h + hh, bz + Math.sin(a) * 0.14], gcol);
+      }
+      if (T.hash2(i, j, 44) > 0.8 && v > 0.45) {
+        const fc = [[1, 0.9, 0.2], [0.95, 0.95, 1], [0.9, 0.35, 0.6], [0.6, 0.5, 0.95]][Math.floor(T.hash2(i, j, 45) * 4)];
+        g.sphere(0.06, 4, 3, fc, m4translate(lx + 0.3, h + hh + 0.04, lz));
+      }
+    }
+  }
+
   _key(cx, cz) { return cx * 4099 + cz; }
 
   _build(cx, cz, lod) {
     const ox = cx * CH, oz = cz * CH;
-    const cells = lod === 0 ? 64 : 32, step = CH / cells, nv = cells + 1;
+    const cells = lod === 0 ? 128 : 48, step = CH / cells, nv = cells + 1;
     const g = new Geo();
     const hs = new Float32Array(nv * nv);
     for (let j = 0; j < nv; j++) for (let i = 0; i < nv; i++) hs[j * nv + i] = T.heightAt(ox + i * step, oz + j * step);
@@ -114,6 +143,7 @@ export class World {
     const trees = T.treesInChunk(cx, cz);
     const dec = lod === 0 ? 1 : 2;
     for (let k = 0; k < trees.length; k += 1) { if (lod && k % dec) continue; addTree(g, trees[k], ox, oz); }
+    if (lod === 0) this._scatter(g, cx, cz, ox, oz);
     // boulders on steep ground
     if (lod === 0) {
       for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) {
