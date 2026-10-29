@@ -21,7 +21,9 @@ with sync_playwright() as p:
     check('ride button starts the game', pg.evaluate("window.__mx.running"))
     st = lambda: pg.evaluate("(()=>{const b=window.__mx.bike;return {x:b.pos[0],z:b.pos[2],v:Math.hypot(...b.v)*3.6,state:b.state}})()")
     z0 = st()['z']
-    pg.keyboard.down('w'); time.sleep(6); s1 = st(); pg.keyboard.up('w')
+    pg.keyboard.down('w'); t1 = time.time(); s1 = st()
+    while time.time() - t1 < 25 and not (s1['v'] > 8 and abs(s1['z'] - z0) > 1.5): time.sleep(0.5); s1 = st()   # software GL runs the sim slower than real time
+    pg.keyboard.up('w')
     check('throttle moves the bike', s1['v'] > 8 and abs(s1['z'] - z0) > 1.5, f"{s1['v']:.0f} km/h")
     pg.keyboard.down('s'); time.sleep(3); pg.keyboard.up('s')
     check('brakes slow the bike', st()['v'] < s1['v'], f"{st()['v']:.0f} km/h")
