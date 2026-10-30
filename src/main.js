@@ -1,6 +1,7 @@
 // main.js - game loop: physics (fixed 240 Hz), AI race, cameras, rendering, HUD, audio, particles.
 import { Renderer } from './renderer.js';
 import { World } from './scene.js';
+import { initMapSelect } from './mapSelect.js';
 import { Bike, P } from './physics.js';
 import { initGarage, applySetup, classOf, COLOURS, GEAR_COLOURS, PLATES } from './garage.js';
 import { createBikeModel, RiderRagdoll } from './bikeModel.js';
@@ -26,7 +27,7 @@ async function boot() {
   let renderer;
   try { renderer = new Renderer(canvas); } catch (e) { return fail(String(e.message || e).slice(0, 300)); }
 
-  const mapImg = new Image(); mapImg.src = 'assets/map.jpg';
+  const mapImg = T.ACTIVE ? T.ACTIVE.image(document) : new Image(); if (!T.ACTIVE) mapImg.src = 'assets/map.jpg';
   let quality = 1;
   try { const q = parseInt(localStorage.getItem('aimx-quality'), 10); if (q >= 0 && q <= 2) quality = q; } catch (_) {}
   if (params.has('q')) quality = clamp(parseInt(params.get('q'), 10) || 0, 0, 2);
@@ -157,6 +158,10 @@ async function boot() {
   };
   const rideMode = camera.mode;
   const begin2 = () => { camera.setMode(rideMode); begin(); };
+  const mapSel = initMapSelect();
+  $('mapname').textContent = mapSel.name + (mapSel.sub ? ' · ' + mapSel.sub : '');
+  $('mapsel').onclick = () => { $('start').classList.add('hide'); mapSel.open(() => $('start').classList.remove('hide')); };
+  $('mapsel2').onclick = () => { $('pause').classList.add('hide'); mapSel.open(() => $('pause').classList.remove('hide')); };
   $('garagebtn').onclick = () => garage.open();
   $('garagebtn2').onclick = () => garage.open();
   $('spotbtn').onclick = () => { hud.toggleMap(true); };

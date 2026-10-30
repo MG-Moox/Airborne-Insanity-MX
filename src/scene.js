@@ -8,6 +8,7 @@ const CH = T.CHUNK;
 const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 function terrainColor(x, z, h, n) {
+  if (T.ACTIVE) return T.ACTIVE.color(x, z, h, n);
   const [px, py] = T.toMap(x, z);
   const c = T.mapColor(px, py);
   const r = c[0], g = c[1], b = c[2];
@@ -149,9 +150,9 @@ export class World {
     const trees = T.treesInChunk(cx, cz);
     const dec = lod === 0 ? 1 : 2;
     for (let k = 0; k < trees.length; k += 1) { if (lod && k % dec) continue; addTree(g, trees[k], ox, oz); }
-    if (lod === 0) this._scatter(g, cx, cz, ox, oz);
+    if (lod === 0 && !T.ACTIVE) this._scatter(g, cx, cz, ox, oz);
     // boulders on steep ground
-    if (lod === 0) {
+    if (lod === 0 && !T.ACTIVE) {
       for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) {
         const x = ox + (i + T.hash2(cx * 9 + i, cz * 9 + j, 31)) * (CH / 9), z = oz + (j + T.hash2(cx * 9 + i, cz * 9 + j, 32)) * (CH / 9);
         if (T.hash2(cx * 9 + i, cz * 9 + j, 33) > 0.35) continue;
@@ -219,6 +220,7 @@ export class World {
     for (const m of this.props.statics) r.draw(m, m4identity(), { spec: 0.12, shin: 16 });
     // ferris wheel
     const w = this.props.wheel;
+    if (!w) return;
     this.wheelAngle += dt * 0.12;
     r.draw(w.rim, m4mul(m4translate(w.x, w.y, w.z), m4rotX(this.wheelAngle)));
     for (let i = 0; i < w.count; i++) {

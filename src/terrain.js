@@ -2,9 +2,28 @@
 // World units are metres, y is up, north is -z, east is +x. Spawn is at (0, 0).
 import * as L from './layout.js';
 import { MAP_W, MAP_H, MAP_BLOCK, MAP_B64 } from './mapdata.js';
+import { createMap } from './maps.js';
 
-export const S = L.S;
-const [PX0, PY0] = L.SPAWN_PX;
+// ---- which map is active: 1 = painted island (default), 2 = MX park, 3 = city. Chosen once at load (the menu reloads the page).
+function pickMap() {
+  let id = 1, ly = null;
+  try {
+    const g = globalThis;
+    if (g.__AIMX_MAP) { id = g.__AIMX_MAP; ly = g.__AIMX_LAYOUT || null; }
+    else if (g.location) {
+      const p = new URLSearchParams(g.location.search);
+      let sm = null, sl = null; try { sm = g.localStorage.getItem('aimx-map'); sl = g.localStorage.getItem('aimx-layout'); } catch (_) {}
+      id = parseInt(p.get('map') || sm || '1', 10) || 1; ly = p.get('layout') || sl;
+    }
+  } catch (_) {}
+  return [id === 2 || id === 3 ? id : 1, ly];
+}
+const [MAP_ID, MAP_LAYOUT] = pickMap();
+const AM = createMap(MAP_ID, MAP_LAYOUT);
+export const ACTIVE = AM, MAP_NUMBER = MAP_ID;
+
+export const S = AM ? AM.S : L.S;
+const [PX0, PY0] = AM ? [AM.PX0, AM.PY0] : L.SPAWN_PX;
 export const toWorld = (px, py) => [(px - PX0) * S, (py - PY0) * S];
 export const toMap = (x, z) => [x / S + PX0, z / S + PY0];
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -141,7 +160,7 @@ function sampleGridLinear(grid, x, z) {
   return lerp(lerp(a, b, tx), lerp(c, d, tx), tz);
 }
 // signed distance to the border in metres: positive inside the playable area
-export const borderSD = (x, z) => sampleGridLinear(sdGrid, x, z);
+export const borderSD = AM ? AM.borderSD : (x, z) => sampleGridLinear(sdGrid, x, z);
 const baseAt = (x, z) => sampleGrid(baseGrid, x, z);
 
 // ---------------------------------------------------------------- polylines (river, track)
@@ -237,7 +256,7 @@ class Path {
 
 const river = new Path(L.RIVER, false, 5, 24);
 const creek = new Path(L.CREEK, false, 4, 24);
-const track = new Path(L.TRACK, true, 5, 24);
+const track = new Path(AM ? AM.trackCtrl.map((p) => toMap(p[0], p[1])) : L.TRACK, true, 5, 24);
 
 // path elevations come from the smooth base terrain; rivers only ever flow downhill
 function smoothArr(a, w, closed) {
@@ -250,7 +269,7 @@ function smoothArr(a, w, closed) {
   return o;
 }
 function initPathElev(p, flow) {
-  for (let i = 0; i < p.n; i++) p.e[i] = baseAt(p.x[i], p.z[i]);
+  for (let i = 0; i < p.n; i++) p.e[i] = AM ? AM.height(p.x[i], p.z[i]) : baseAt(p.x[i], p.z[i]);
   if (flow) {
     p.e = smoothArr(p.e, 6, false);
     let m = 1e9; for (let i = 0; i < p.n; i++) { m = Math.min(m, p.e[i]); p.e[i] = m - i * 0.004; }
@@ -298,6 +317,7 @@ export const LAKE_LEVEL = LK.level;
 
 // ---------------------------------------------------------------- the height function
 function rawHeight(x, z) {
+  if (AM) return AM.height(x, z);
   const [px, py] = toMap(x, z);
   let h = baseAt(x, z);
   const hb = h;
@@ -353,6 +373,9 @@ function rawHeight(x, z) {
 
 // bake river/creek surface levels etc. once; jumps/decks are added on top
 (function buildFeatures() {
+  if (AM) {
+    for (const j of AM.jumps) addJump(makeJump(j[0], j[1], j[2], j[3], j[4]));
+  } else {
   for (const j of L.JUMPS) { const [x, z] = toWorld(j[0], j[1]); addJump(makeJump(x, z, j[2], j[3], j[4])); }
   // peak kickers face downhill
   for (const j of L.PEAK_JUMPS) {
@@ -369,6 +392,7 @@ function rawHeight(x, z) {
     const hd = (Math.atan2(dx, -dz) * 180) / Math.PI;
     const j = makeJump(track.x[i0], track.z[i0], hd, tj[1], 4);
     addJump(j);
+  }
   }
   for (let k = 0; k < jumps.length; k++) {
     const j = jumps[k];
@@ -405,6 +429,7 @@ function inJumpCorridor(x, z) {
 
 // decks: built after raw terrain exists
 (function buildDecks() {
+  if (AM) return;
   const add = (x0, z0, x1, z1, wHalf, y0, y1) => decks.push({ x0, z0, x1, z1, wHalf, y0, y1, len: Math.hypot(x1 - x0, z1 - z0) });
   for (const b of L.BRIDGES) {
     const c = toWorld(b[0], b[1]), a = (b[2] * Math.PI) / 180, dx = Math.sin(a), dz = -Math.cos(a), hl = b[3] / 2;
@@ -450,7 +475,7 @@ export function normalAt(x, z, e = 0.25) {
 // ---------------------------------------------------------------- water
 // returns the water surface height at (x,z), or -Infinity if there is no water there
 export function waterLevelAt(x, z) {
-  if (DEBUG.flat) return -Infinity;
+  if (DEBUG.flat || AM) return -Infinity;
   const lr = lakeR(x, z);
   if (lr < 0.985) return LK.level;
   for (const rp of [river, creek]) {
@@ -464,6 +489,7 @@ export function waterDepthAt(x, z) { const w = waterLevelAt(x, z); return w === 
 
 // ---------------------------------------------------------------- surface classification from the painted map
 export function surfaceAt(x, z, h) {
+  if (AM) return AM.surface(x, z);
   const [px, py] = toMap(x, z);
   const c = mapColor(px, py), r = c[0], g = c[1], b = c[2];
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), v = mx, sat = mx > 0 ? (mx - mn) / mx : 0;
@@ -477,6 +503,7 @@ export function surfaceAt(x, z, h) {
 // grip multiplier at a world position (used by the tyre model)
 export function gripAt(x, z, h) {
   if (DEBUG.flat) return DEBUG.grip || 0.9;
+  if (AM) return AM.grip(x, z);
   if (waterLevelAt(x, z) > -1e8) return 0.55;
   const s = surfaceAt(x, z, h);
   if (h > 410 && s.v > 0.5) return 0.62;          // snow
@@ -487,6 +514,7 @@ export function gripAt(x, z, h) {
 
 // ---------------------------------------------------------------- zones
 export function zoneAt(x, z) {
+  if (AM) return AM.zoneAt(x, z);
   const [px, py] = toMap(x, z);
   for (const zn of L.ZONES) {
     if (Math.hypot(px - zn.c[0], py - zn.c[1]) < zn.r) return zn;
@@ -513,6 +541,16 @@ export function treesInChunk(cx, cz) {
   let list = treeCache.get(key);
   if (list) return list;
   list = [];
+  if (AM) {
+    for (const t of AM.trees(cx, cz, CHUNK)) {
+      if (colNear(t.x, t.z, 3.5) || inJumpCorridor(t.x, t.z)) continue;
+      if (featureHeight(t.x, t.z) > 0.01 || featureHeight(t.x + 8, t.z) > 0.01 || featureHeight(t.x - 8, t.z) > 0.01 || featureHeight(t.x, t.z + 8) > 0.01 || featureHeight(t.x, t.z - 8) > 0.01) continue;
+      t.y = rawHeight(t.x, t.z) + featureHeight(t.x, t.z);
+      list.push(t);
+    }
+    treeCache.set(key, list);
+    return list;
+  }
   const n = Math.ceil(CHUNK / TREE_CELL);
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const gi = cx * n + i, gj = cz * n + j;
@@ -549,23 +587,36 @@ export function nearbyTrees(x, z, radius) {
 
 // ---------------------------------------------------------------- solid props (buildings etc.): circles
 export const COLLIDERS = [];
+const colHash = new Map(), CCELL = 32;       // spatial hash: the city has thousands of colliders
+const chk = (a, b) => a * 73856093 ^ b * 19349663;
 export function addCollider(x, z, r, topAboveGround) {
-  COLLIDERS.push({ x, z, r, h: topAboveGround, y: rawHeight(x, z) });
+  const c = { x, z, r, h: topAboveGround, y: rawHeight(x, z) };
+  COLLIDERS.push(c);
+  const x0 = Math.floor((x - r) / CCELL), x1 = Math.floor((x + r) / CCELL), z0 = Math.floor((z - r) / CCELL), z1 = Math.floor((z + r) / CCELL);
+  for (let a = x0; a <= x1; a++) for (let b = z0; b <= z1; b++) { const k = chk(a, b); let l = colHash.get(k); if (!l) { l = []; colHash.set(k, l); } l.push(c); }
 }
-function propBlocked(x, z, pad) {
-  for (const c of COLLIDERS) if (Math.hypot(c.x - x, c.z - z) < c.r + pad) return true;
+function colNear(x, z, pad) {
+  const l = colHash.get(chk(Math.floor(x / CCELL), Math.floor(z / CCELL)));
+  if (!l) return false;
+  for (const c of l) if (Math.hypot(c.x - x, c.z - z) < c.r + pad) return true;
   return false;
 }
+function propBlocked(x, z, pad) { return colNear(x, z, pad); }
 export const DEBUG = { noColliders: false, flat: false, grip: 0.9 };   // tests: ride through trees / buildings
 export function nearbyColliders(x, z, radius) {
   if (DEBUG.noColliders) return [];
   const out = nearbyTrees(x, z, radius);
-  for (const c of COLLIDERS) { const dx = c.x - x, dz = c.z - z; if (dx * dx + dz * dz < (radius + c.r) * (radius + c.r)) out.push(c); }
+  const rr = radius + 8, x0 = Math.floor((x - rr) / CCELL), x1 = Math.floor((x + rr) / CCELL), z0 = Math.floor((z - rr) / CCELL), z1 = Math.floor((z + rr) / CCELL);
+  for (let a = x0; a <= x1; a++) for (let b = z0; b <= z1; b++) {
+    const l = colHash.get(chk(a, b)); if (!l) continue;
+    for (const c of l) { const dx = c.x - x, dz = c.z - z; if (dx * dx + dz * dz < (radius + c.r) * (radius + c.r) && !out.includes(c)) out.push(c); }
+  }
   return out;
 }
 
 // every building / stage / wheel registers circular colliders so you can't ride through them
 (function registerProps() {
+  if (AM) { for (const c of AM.colliders) addCollider(c.x, c.z, c.r, c.h); return; }
   for (const b of L.BUILDINGS) {
     const [x, z] = toWorld(b[0], b[1]);
     const w = b[2], d = b[3], a = (b[5] * Math.PI) / 180;
@@ -591,7 +642,7 @@ export function nearbyColliders(x, z, radius) {
 
 // ---------------------------------------------------------------- spawn / fast travel
 export function spawnPoint(i) {
-  const t = L.TELEPORTS[i];
+  const t = LAYOUT.TELEPORTS[i];
   let [x, z] = toWorld(t[1], t[2]);
   let yaw;
   if (t[3] === 'auto') {                       // face downhill and start on the slope above the launch ramp
@@ -601,6 +652,6 @@ export function spawnPoint(i) {
   } else yaw = (-t[3] * Math.PI) / 180;
   return { name: t[0], x, z, yaw, cat: t[4], blurb: t[5] };
 }
-export const TELEPORT_COUNT = L.TELEPORTS.length;
-export const WORLD_BOX = { x0: toWorld(0, 0)[0], z0: toWorld(0, 0)[1], x1: toWorld(L.IMG_W, L.IMG_H)[0], z1: toWorld(L.IMG_W, L.IMG_H)[1] };
-export const LAYOUT = L;
+export const LAYOUT = AM ? AM.layout : L;
+export const TELEPORT_COUNT = LAYOUT.TELEPORTS.length;
+export const WORLD_BOX = AM ? AM.box : { x0: toWorld(0, 0)[0], z0: toWorld(0, 0)[1], x1: toWorld(L.IMG_W, L.IMG_H)[0], z1: toWorld(L.IMG_W, L.IMG_H)[1] };

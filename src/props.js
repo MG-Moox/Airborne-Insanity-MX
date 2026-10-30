@@ -2,6 +2,7 @@
 import { Geo } from './geometry.js';
 import { m4translate, m4rotX, m4rotY, m4rotZ, m4mul, m4scale, limbMatrix } from './mathgl.js';
 import * as T from './terrain.js';
+import { buildAltProps } from './altProps.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 const rnd = (a, b, s) => { const v = Math.abs(Math.sin(a * 127.1 + b * 311.7 + s * 74.7) * 43758.5453); return v - Math.floor(v); };
@@ -15,6 +16,7 @@ const WHITE = [0.94, 0.94, 0.96], DARK = [0.1, 0.1, 0.12], WOOD = [0.45, 0.31, 0
 function groundY(x, z) { return T.heightAt(x, z); }
 
 export function buildProps(r) {
+  if (T.ACTIVE) return buildAltProps(r);
   const out = { statics: [], water: [], wheel: null };
   const L = T.LAYOUT;
   const world = new Geo();    // opaque world props, in world coordinates

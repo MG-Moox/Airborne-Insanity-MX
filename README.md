@@ -36,3 +36,15 @@ menus and game modes, AI racing (a prototype is in `src/race.js` but is disabled
 - `python3 tests/smoke.py http://localhost:8000/` browser UI test (needs Playwright + Chromium).
 
 `classic-2d/` keeps the original 2D prototype.
+
+
+## Maps, garage upgrades
+
+- **Map selector** (main menu `MAP:` button, pause menu `CHANGE MAP`): choose between
+  1. *Painted Island* - the open-world island built from the painted reference image,
+  2. *Ridgeline MX Park* - a conventional pro motocross track with three layouts (National, Technical, Freeride), paddock, grandstand, hay bales, marshal towers and a freestyle jump field,
+  3. *Downtown Freeride* - a city with street-gap jumps over intersections, a skate plaza (bowl, funbox, stairs), a dirt building site, park hills, a fountain square and a street circuit with lap timing.
+  The world is generated once per load, so choosing a map stores it (`aimx-map`, `aimx-layout` in localStorage) and reloads. `?map=2&layout=technical` or `?map=3` also work.
+  Maps 2 and 3 are procedural (`src/maps.js`, props in `src/altProps.js`); everything is selected inside `src/terrain.js` via `ACTIVE`.
+- **Garage upgrades**: engine, suspension, brakes and weight each have stages 0-3. They change the physics (power, top speed, spring/damper rates, brake force, mass) and are reflected in the stat bars.
+- Tests: `node tests/maps.test.mjs 2 national|technical|freeride`, `node tests/maps.test.mjs 3`, `node tests/garage.test.mjs`.

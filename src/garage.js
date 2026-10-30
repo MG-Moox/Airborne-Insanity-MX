@@ -15,35 +15,48 @@ export const PLATES = [['WHITE', [0.93, 0.93, 0.95]], ['YELLOW', [0.98, 0.85, 0.
 export const SUSP = [['SOFT', { k: 0.88, c: 0.85 }, 'Plush over chop, more bottoming on big landings'], ['STANDARD', { k: 1, c: 1 }, 'Balanced for everything'], ['STIFF', { k: 1.15, c: 1.2 }, 'Holds up on big jumps, harsher over bumps']];
 export const GEARING = [['ACCELERATION', { fe: 1.12, vt: 0.9 }, 'Short gearing: more punch, lower top speed'], ['BALANCED', { fe: 1, vt: 1 }, 'Stock gearing'], ['TOP SPEED', { fe: 0.9, vt: 1.1 }, 'Tall gearing: slower off the line, higher top speed']];
 export const TYRES = [['SOFT TERRAIN', 1.07, 'Most grip on loose dirt'], ['INTERMEDIATE', 1, 'All-rounder'], ['HARD PACK', 0.94, 'Less grip, lower rolling drag feel']];
-export const DEFAULT_SETUP = { cls: '250-2t', colour: 0, gear: 0, plate: 0, susp: 1, gearing: 1, tyre: 1 };
+// Upgrade stages 0..3 (stock .. pro). Each stage costs weight/benefit trade-offs and is applied to the physics.
+export const UPGRADES = [
+  { key: 'engine', name: 'ENGINE', desc: ['Stock engine', 'Ported cylinder: +6% power', 'Race tune: +12% power', 'Factory works: +18% power, +1 m/s top speed'], power: [1, 1.06, 1.12, 1.18], vt: [0, 0, 0.5, 1], mass: [0, 0.5, 1, 1.5] },
+  { key: 'susp', name: 'SUSPENSION', desc: ['Stock forks and shock', 'Re-valved: better damping', 'Factory springs and valving', 'Works kit: best landings'], k: [1, 1.04, 1.08, 1.12], c: [1, 1.08, 1.16, 1.24], mass: [0, 0, 0.3, 0.6] },
+  { key: 'brakes', name: 'BRAKES', desc: ['Stock brakes', 'Steel braided lines', 'Oversize front disc', 'Works calipers: strongest stopping'], brake: [1, 1.08, 1.17, 1.28], mass: [0, 0.1, 0.3, 0.4] },
+  { key: 'weight', name: 'WEIGHT', desc: ['Stock wheels and bars', 'Light bars and levers', 'Carbon guards and subframe', 'Titanium and carbon everywhere'], mass: [0, -2, -4.5, -7] },
+];
+export const DEFAULT_SETUP = { cls: '250-2t', colour: 0, gear: 0, plate: 0, susp: 1, gearing: 1, tyre: 1, up: { engine: 0, susp: 0, brakes: 0, weight: 0 } };
+export const upgradeLevel = (s, key) => clamp((s.up && s.up[key]) | 0, 0, 3);
+const upMass = (s) => UPGRADES.reduce((a, u) => a + u.mass[upgradeLevel(s, u.key)], 0);
 
 const BASE = { K: 7000, CC: 1000, CR: 1600, MU: 1.0, I: [65, 45, 30] };   // original values from physics.js
 export const classOf = (s) => CLASSES.find((c) => c.id === s.cls) || CLASSES[1];
 
 export function loadSetup() {
-  try { const v = JSON.parse(localStorage.getItem('aimx-garage')); if (v && typeof v === 'object') return { ...DEFAULT_SETUP, ...v }; } catch (_) {}
-  return { ...DEFAULT_SETUP };
+  try { const v = JSON.parse(localStorage.getItem('aimx-garage')); if (v && typeof v === 'object') return { ...DEFAULT_SETUP, ...v, up: { ...DEFAULT_SETUP.up, ...(v.up || {}) } }; } catch (_) {}
+  return { ...DEFAULT_SETUP, up: { ...DEFAULT_SETUP.up } };
 }
 const saveSetup = (s) => { try { localStorage.setItem('aimx-garage', JSON.stringify(s)); } catch (_) {} };
 
 // write the setup into the live physics parameter object
 export function applySetup(P, s) {
   const c = classOf(s), su = SUSP[clamp(s.susp, 0, 2)][1], ge = GEARING[clamp(s.gearing, 0, 2)][1], ty = TYRES[clamp(s.tyre, 0, 2)][1];
-  P.M = c.M; P.POWER = c.POWER; P.FE_MAX = Math.round(c.FE * ge.fe); P.VTOP = +(c.VTOP * ge.vt).toFixed(2);
-  P.K = BASE.K * su.k; P.CC = BASE.CC * su.c; P.CR = BASE.CR * su.c; P.MU = BASE.MU * ty;
+  const E = UPGRADES[0], S2 = UPGRADES[1], B = UPGRADES[2], le = upgradeLevel(s, 'engine'), ls = upgradeLevel(s, 'susp'), lb = upgradeLevel(s, 'brakes');
+  P.M = c.M + upMass(s); P.POWER = c.POWER * E.power[le]; P.FE_MAX = Math.round(c.FE * ge.fe * E.power[le]); P.VTOP = +(c.VTOP * ge.vt + E.vt[le]).toFixed(2);
+  P.K = BASE.K * su.k * S2.k[ls]; P.CC = BASE.CC * su.c * S2.c[ls]; P.CR = BASE.CR * su.c * S2.c[ls]; P.MU = BASE.MU * ty;
+  P.BRAKE_K = B.brake[lb];
   P.I = BASE.I.map((v) => v * c.I);
 }
 
 // 0..1 bars for the garage UI, computed from the same numbers the physics uses
 export function statBars(s) {
   const c = classOf(s), ge = GEARING[clamp(s.gearing, 0, 2)][1], su = SUSP[clamp(s.susp, 0, 2)][1], ty = TYRES[clamp(s.tyre, 0, 2)][1];
-  const fe = c.FE * ge.fe, vt = c.VTOP * ge.vt;
+  const le = upgradeLevel(s, 'engine'), ls = upgradeLevel(s, 'susp'), lb = upgradeLevel(s, 'brakes');
+  const fe = c.FE * ge.fe * UPGRADES[0].power[le], vt = c.VTOP * ge.vt + UPGRADES[0].vt[le], M = c.M + upMass(s);
   return [
     ['ACCELERATION', clamp((fe - 2000) / 1700, 0.05, 1)],
     ['TOP SPEED', clamp((vt - 34) / 20, 0.05, 1)],
-    ['AGILITY', clamp(1 - (c.M - 176) / 50, 0.1, 1)],
+    ['AGILITY', clamp(1 - (M - 170) / 50, 0.1, 1)],
+    ['BRAKING', clamp((UPGRADES[2].brake[lb] - 0.9) / 0.5, 0.05, 1)],
     ['GRIP', clamp((ty - 0.85) / 0.3, 0.05, 1)],
-    ['LANDING STRENGTH', clamp((su.k - 0.8) / 0.4, 0.05, 1)],
+    ['LANDING STRENGTH', clamp((su.k * UPGRADES[1].k[ls] - 0.8) / 0.5, 0.05, 1)],
   ];
 }
 
@@ -79,11 +92,19 @@ export function initGarage(hooks) {
     // stat bars
     const bars = el('div', 'gsec'); bars.appendChild(el('div', 'gl', 'PERFORMANCE'));
     statBars(setup).forEach(([n, v]) => bars.appendChild(el('div', 'bar', `<span>${n}</span><i><u style="width:${Math.round(v * 100)}%"></u></i>`)));
-    const c = classOf(setup); bars.appendChild(el('div', 'gn', `${c.M} kg with rider · ${(c.four ? '4-stroke' : '2-stroke')} engine note`));
+    const c = classOf(setup); bars.appendChild(el('div', 'gn', `${(c.M + upMass(setup)).toFixed(1)} kg with rider · ${(c.four ? '4-stroke' : '2-stroke')} engine note`));
     body.appendChild(bars);
+    const up = el('div', 'gsec'); up.appendChild(el('div', 'gl', 'UPGRADES'));
+    UPGRADES.forEach((u) => {
+      const lv = upgradeLevel(setup, u.key), row = el('div', 'urow'); row.appendChild(el('span', 'un', u.name));
+      const pips = el('div', 'seg');
+      for (let i = 0; i < 4; i++) { const b = el('button', i === lv ? 'on' : (i < lv ? 'lo' : ''), i === 0 ? 'STOCK' : 'STAGE ' + i); b.title = u.desc[i]; b.onclick = () => { setup.up[u.key] = i; change(); }; pips.appendChild(b); }
+      row.appendChild(pips); row.appendChild(el('div', 'gn', u.desc[lv])); up.appendChild(row);
+    });
+    body.appendChild(up);
     sw(COLOURS, 'colour', body, 'BIKE COLOUR'); sw(GEAR_COLOURS, 'gear', body, 'RIDER GEAR'); sw(PLATES, 'plate', body, 'NUMBER PLATES');
     seg(SUSP, 'susp', body, 'SUSPENSION'); seg(GEARING, 'gearing', body, 'GEARING'); seg(TYRES, 'tyre', body, 'TYRES');
-    const rs = el('button', 'btn alt', 'RESET TO STOCK'); rs.onclick = () => { Object.assign(setup, DEFAULT_SETUP); change(); }; body.appendChild(rs);
+    const rs = el('button', 'btn alt', 'RESET TO STOCK'); rs.onclick = () => { Object.assign(setup, DEFAULT_SETUP, { up: { ...DEFAULT_SETUP.up } }); change(); }; body.appendChild(rs);
   }
   function change() { saveSetup(setup); render(); hooks.change && hooks.change(setup); }
   function open() { render(); panel.classList.remove('hide'); hooks.open && hooks.open(); }

@@ -69,6 +69,17 @@
   .swatches { display: flex; flex-wrap: wrap; gap: 7px; }
   .sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); cursor: pointer; }
   .sw.on { border-color: #fff; box-shadow: 0 0 0 3px var(--lime); }
+  .mapcard { max-width: 980px; width: 94vw; text-align: center; max-height: 92vh; overflow: auto; }
+  .mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin: 14px 0; }
+  .mcard { background: rgba(255,255,255,.07); border: 2px solid var(--line); border-radius: 14px; padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .mcard.on { border-color: var(--lime); }
+  .mcard small { opacity: .8; line-height: 1.35; flex: 1; }
+  .mthumb { height: 110px; border-radius: 10px; }
+  .mthumb.m1 { background: linear-gradient(160deg,#2b5d8a 0 25%,#3d7d3a 25% 60%,#e9e4d8 60%); }
+  .mthumb.m2 { background: radial-gradient(ellipse at 50% 50%,#b07a45 0 14%,transparent 15%), repeating-linear-gradient(0deg,#3d7d22 0 12px,#468a28 12px 24px); }
+  .mthumb.m3 { background: linear-gradient(90deg,transparent 0 30%,#2c2c30 30% 36%,transparent 36% 64%,#2c2c30 64% 70%,transparent 70%), linear-gradient(0deg,transparent 0 30%,#2c2c30 30% 36%,transparent 36% 64%,#2c2c30 64% 70%,transparent 70%), #8d8d8a; }
+  .urow { margin: 6px 0 10px; } .urow .un { font-size: 12px; font-weight: 800; letter-spacing: 1px; opacity: .85; }
+  .seg button.lo { background: rgba(168,255,69,.28); }
   .seg { display: flex; gap: 5px; flex-wrap: wrap; }
   .seg button { flex: 1; background: rgba(255,255,255,.1); color: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; font-size: 12px; font-weight: 800; cursor: pointer; }
   .seg button.on { background: var(--lime); color: #101808; }
@@ -147,6 +158,7 @@
   <div class="mbtns">
     <button class="go big" id="go">&#9654; FREE RIDE</button>
     <button class="btn" id="garagebtn">GARAGE</button>
+    <button class="btn" id="mapsel">MAP: <span id="mapname">PAINTED ISLAND</span></button>
     <button class="btn" id="spotbtn">START SPOT: <span id="spotname">FESTIVAL</span></button>
     <button class="btn alt" id="ctlbtn">CONTROLS</button>
   </div>
@@ -158,12 +170,13 @@
 <div id="pause" class="overlay hide"><div class="card glass">
   <h1 style="font-size:40px">PAUSED</h1>
   <div id="pq"></div>
-  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn" id="garagebtn2">GARAGE</button><button class="btn" id="mapbtn2">MAP / TELEPORT</button><button class="btn alt" id="ctlbtn2">CONTROLS</button><button class="btn alt" id="mute">SOUND ON</button></p>
+  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn" id="garagebtn2">GARAGE</button><button class="btn" id="mapsel2">CHANGE MAP</button><button class="btn" id="mapbtn2">MAP / TELEPORT</button><button class="btn alt" id="ctlbtn2">CONTROLS</button><button class="btn alt" id="mute">SOUND ON</button></p>
   <small>Mouse drag: look around &middot; wheel: zoom (orbit cam) &middot; H: this help</small>
 </div></div>
 
 
 <aside id="garage" class="glass hide"></aside>
+<div id="maps" class="overlay hide"></div>
 
 <script>
 // Load diagnostics: classic script so it still runs when ES modules are blocked (e.g. double-clicking index.html).

@@ -206,7 +206,7 @@ export class Bike {
         if (inp.brakeF > 0.3 && inp.throttle === 0 && vF < 0.6 && vl > -2.5) Fx -= 450;   // reverse
       }
       Fx -= P.CRR * Fs * Math.tanh(vl * 3);
-      let brake = front ? inp.brakeF * P.BMAXF : inp.brakeR * P.BMAXR;
+      let brake = (front ? inp.brakeF * P.BMAXF : inp.brakeR * P.BMAXR) * (P.BRAKE_K || 1);
       if (brake <= 0 && inp.throttle < 0.05 && Math.abs(vl) < 0.6 && !crashed) brake = 0.6 * Fmax; // parking hold
       if (brake > 0) {
         // ordinary brake presses are ABS-like (they can't lock the wheel); only a deliberate full press (Space / B) can lock and skid
