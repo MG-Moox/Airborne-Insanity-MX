@@ -5,6 +5,7 @@ import { Bike } from './physics.js';
 import { createBikeModel, RiderRagdoll } from './bikeModel.js';
 import { Camera, CAM_MODES } from './camera.js';
 import { Input } from './input.js';
+import { initControls } from './controlsUI.js';
 import { Audio } from './audio.js';
 import { Particles } from './particles.js';
 import { Hud, fmtTime } from './hud.js';
@@ -82,6 +83,15 @@ async function boot() {
     look: (dx, dy) => camera.look(dx, dy),
     zoom: (d) => camera.zoom(d),
   });
+
+  const controls = initControls(input, {
+    camera: () => { const n = camera.cycle(); hud.setCamName(n); },
+    respawn: () => { bike.respawn(); rider.active = false; camera.initialised = false; },
+    map: () => { if (running) hud.toggleMap(); },
+    pause: () => togglePause(),
+  });
+  $('ctlbtn').onclick = () => controls.open();
+  $('ctlbtn2').onclick = () => controls.open();
 
   function togglePause() {
     if (!running) return;
@@ -188,6 +198,8 @@ async function boot() {
     requestAnimationFrame(frame);
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (paused) dt = 0;
+    controls.setActive(running && !paused);
+    input.speed = Math.hypot(bike.v[0], bike.v[2]);
     const inpRaw = input.poll(dt);
     let inp = inpRaw;
     const crashed = bike.state === 'crashed';

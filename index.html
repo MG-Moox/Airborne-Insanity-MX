@@ -57,11 +57,6 @@
   #bigmap { position: fixed; inset: 0; z-index: 4; background: rgba(5,9,13,.92); display: grid; place-items: center; }
   #bigmap canvas { max-width: 96vw; max-height: 92vh; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
   #bigmap .cap { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 13px; color: #b9c4ce; }
-  .pad { position: fixed; bottom: 16px; display: none; gap: 10px; z-index: 3; }
-  .pad.l { left: 14px; } .pad.r { right: 14px; flex-direction: column; align-items: flex-end; }
-  .pad button { width: 70px; height: 70px; border-radius: 50%; border: 2px solid rgba(255,255,255,.55); background: rgba(0,0,0,.35); color: #fff; font-size: 13px; font-weight: 800; }
-  .pad button.on { background: rgba(168,255,69,.7); color: #111; }
-  @media (pointer: coarse) { .pad { display: flex; } #mini { bottom: auto; top: 140px; width: 120px; height: 120px; } #stats { font-size: 11px; min-width: 120px; padding: 6px 9px; } #speedo { bottom: 170px; } }
   @media (max-width: 700px) { #mini { width: 120px; height: 120px; } #lap { font-size: 11px; min-width: 130px; } #lap .big { font-size: 18px; } }
 </style>
 </head>
@@ -106,25 +101,18 @@
 <div id="start" class="overlay hide"><div class="card glass">
   <h1>AIRBORNE<span class="l">INSANITY MX</span></h1>
   <small>ONE MAP. ENDLESS LINES. &mdash; free-roam motocross with realistic bike physics</small>
-  <table class="keys">
-    <tr><td><kbd>W</kbd> throttle</td><td><kbd>S</kbd> brakes</td><td><kbd>A</kbd> <kbd>D</kbd> steer</td></tr>
-    <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> lean fwd / back</td><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> lean sideways</td><td><kbd>Space</kbd> rear brake</td></tr>
-    <tr><td><kbd>C</kbd> camera (chase / close / POV / orbit)</td><td><kbd>M</kbd> map &amp; fast travel</td><td><kbd>1</kbd>-<kbd>8</kbd> teleport</td></tr>
-    <tr><td><kbd>L</kbd> reset lap timer</td><td><kbd>R</kbd> respawn</td><td><kbd>Esc</kbd> pause</td></tr>
-  </table>
+  <table class="keys" id="keytable"></table>
   <div id="qrow"></div>
-  <button class="go" id="go">RIDE</button>
+  <button class="go" id="go">RIDE</button><button class="btn alt" id="ctlbtn">CONTROLS</button>
 </div></div>
 
 <div id="pause" class="overlay hide"><div class="card glass">
   <h1 style="font-size:40px">PAUSED</h1>
   <div id="pq"></div>
-  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn alt" id="mute">SOUND ON</button></p>
+  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn alt" id="ctlbtn2">CONTROLS</button><button class="btn alt" id="mute">SOUND ON</button></p>
   <small>Mouse drag: look around &middot; wheel: zoom (orbit cam) &middot; H: this help</small>
 </div></div>
 
-<div class="pad l"><button data-btn="left">&larr;</button><button data-btn="right">&rarr;</button><button data-btn="fwd">LEAN<br>FWD</button><button data-btn="back">LEAN<br>BACK</button></div>
-<div class="pad r"><button data-btn="gas">GAS</button><button data-btn="brake">BRAKE</button></div>
 
 <script>
 // Load diagnostics: classic script so it still runs when ES modules are blocked (e.g. double-clicking index.html).
