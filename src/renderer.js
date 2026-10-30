@@ -87,7 +87,7 @@ void main(){
       float hz = vn(q + vec2(0.0, e) + vec2(t*0.30, t*0.18)) + vn((q + vec2(0.0,e))*2.3 - vec2(t*0.25, -t*0.2))*0.5 + vn((q + vec2(0.0,e))*5.1 + vec2(-t*0.4, t*0.35))*0.25;
       float fade = 1.0 - smoothstep(40.0, 200.0, dist);
       wn = normalize(vec3((h0-hx)*0.9*fade, 1.0, (h0-hz)*0.9*fade));
-      float fr = 0.03 + 0.97 * pow(1.0 - max(dot(wn, V), 0.0), 5.0);
+      float fr = 0.03 + 0.97 * pow(clamp(1.0 - dot(wn, V), 0.0, 1.0), 5.0);
       vec3 R = reflect(-V, wn); R.y = abs(R.y);
       vec3 deep = pow(vec3(0.05, 0.28, 0.36), vec3(2.2));
       vec3 c = mix(deep, skyCol(R), fr);
@@ -133,7 +133,7 @@ void main(){
   if (uSpec > 0.0) {
     vec3 H = normalize(uSun + V);
     float sp = pow(max(dot(n, H), 0.0), uShin) * uSpec * ndl * sh * (uShin + 8.0) / 25.0;
-    float rim = pow(1.0 - max(dot(n, V), 0.0), 4.0) * uSpec * 0.6;
+    float rim = pow(clamp(1.0 - dot(n, V), 0.0, 1.0), 4.0) * uSpec * 0.6;
     lit += SUN_COL * sp * 0.35 + SKY_AMB * rim * (0.4 + 0.6*hemi);
   }
   // atmosphere: distance fog with warm in-scatter toward the sun
@@ -142,6 +142,8 @@ void main(){
   float sd = max(dot(-V, uSun), 0.0);
   vec3 fogC = uFogColor + vec3(1.0, 0.75, 0.5) * pow(sd, 5.0) * 0.55;
   vec3 c = mix(lit, fogC, f);
+  c = min(max(c, vec3(0.0)), vec3(32.0));               // keep HDR finite (fp16) so bloom can never blow up
+  if (!(c.r == c.r) || !(c.g == c.g) || !(c.b == c.b)) c = fogC;   // NaN guard
   o = vec4(c, uAlpha);
 }`;
 
@@ -219,21 +221,22 @@ const BLOOM_FS = `#version 300 es
 precision highp float;
 in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; uniform vec2 uDir; uniform float uMode; uniform float uThresh;
 out vec4 o;
-vec3 pre(vec3 c){ float l = max(c.r, max(c.g, c.b)); float k = max(l - uThresh, 0.0); k = k*k/(k + 0.5) ; return c * (k / max(l, 1e-4)); }
+vec3 san(vec3 c){ c = min(max(c, vec3(0.0)), vec3(48.0)); return (c.r == c.r && c.g == c.g && c.b == c.b) ? c : vec3(0.0); }
+vec3 pre(vec3 c){ c = san(c); float l = max(c.r, max(c.g, c.b)); float k = max(l - uThresh, 0.0); k = k*k/(k + 0.5) ; return c * (k / max(l, 1e-4)); }
 void main(){
   if (uMode < 0.5) {                       // prefilter + 4x downsample (4 bilinear taps)
     vec3 a = pre(texture(uTex, vUv + uTexel*vec2(-1.0,-1.0)).rgb) + pre(texture(uTex, vUv + uTexel*vec2(1.0,-1.0)).rgb)
            + pre(texture(uTex, vUv + uTexel*vec2(-1.0,1.0)).rgb) + pre(texture(uTex, vUv + uTexel*vec2(1.0,1.0)).rgb);
-    o = vec4(a * 0.25, 1.0);
+    o = vec4(san(a * 0.25), 1.0);
   } else if (uMode < 1.5) {                // plain 2x downsample
     vec3 a = texture(uTex, vUv + uTexel*vec2(-1.0,-1.0)).rgb + texture(uTex, vUv + uTexel*vec2(1.0,-1.0)).rgb
            + texture(uTex, vUv + uTexel*vec2(-1.0,1.0)).rgb + texture(uTex, vUv + uTexel*vec2(1.0,1.0)).rgb;
-    o = vec4(a * 0.25, 1.0);
+    o = vec4(san(a * 0.25), 1.0);
   } else {                                 // gaussian blur along uDir
     vec3 a = texture(uTex, vUv).rgb * 0.2270270270;
     a += (texture(uTex, vUv + uDir*uTexel*1.3846153846).rgb + texture(uTex, vUv - uDir*uTexel*1.3846153846).rgb) * 0.3162162162;
     a += (texture(uTex, vUv + uDir*uTexel*3.2307692308).rgb + texture(uTex, vUv - uDir*uTexel*3.2307692308).rgb) * 0.0702702703;
-    o = vec4(a, 1.0);
+    o = vec4(san(a), 1.0);
   }
 }`;
 const COMP_FS = `#version 300 es
@@ -252,7 +255,8 @@ void main(){
     for (int i = 0; i < 7; i++) c += texture(uScene, vUv - d * (float(i) / 6.0) * uSpeed * (0.2 + r2 * 3.0)).rgb;
     c /= 7.0;
   } else c = texture(uScene, vUv).rgb;
-  if (uBloom > 0.0) c += (texture(uB1, vUv).rgb * 0.65 + texture(uB2, vUv).rgb * 0.9) * uBloom;
+  c = min(max(c, vec3(0.0)), vec3(48.0)); if (!(c.r == c.r && c.g == c.g && c.b == c.b)) c = vec3(0.0);
+  if (uBloom > 0.0) { vec3 bl = (texture(uB1, vUv).rgb * 0.65 + texture(uB2, vUv).rgb * 0.9) * uBloom; bl = min(max(bl, vec3(0.0)), vec3(6.0)); if (bl.r == bl.r && bl.g == bl.g && bl.b == bl.b) c += bl; }
   c *= uExposure;
   c = aces(c);
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
