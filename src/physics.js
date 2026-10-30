@@ -231,6 +231,16 @@ export class Bike {
       W.spin += W.omega * dt;
     }
 
+    // Chassis yaw response: the front tyre still supplies the physical cornering force,
+    // while this damped steering moment makes the frame follow the steered front wheel
+    // instead of feeling like the bars turn but the bike carries straight on.
+    if (!crashed && (this.wheels[0].grounded || this.wheels[1].grounded)) {
+      const yawRate = dot(this.w, up);
+      const targetYawRate = vF * Math.tan(this.steer) / WHEELBASE;
+      const yawTorque = clamp((targetYawRate - yawRate) * P.I[1] * 1.8, -650, 650);
+      T = add(T, mul(up, yawTorque));
+    }
+
     // water: drag while wading, sinking in deep water
     this.wet = 0;
     const wLev = waterLevelAt(this.pos[0], this.pos[2]);
