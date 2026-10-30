@@ -9,6 +9,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Airborne Insanity MX running on port ${PORT}`);
-});
+// Only listen when run directly (npm start / Render). On Vercel the app is exported instead.
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Airborne Insanity MX running on port ${PORT}`);
+  });
+}
+module.exports = app;

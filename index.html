@@ -126,6 +126,16 @@
 <div class="pad l"><button data-btn="left">&larr;</button><button data-btn="right">&rarr;</button><button data-btn="fwd">LEAN<br>FWD</button><button data-btn="back">LEAN<br>BACK</button></div>
 <div class="pad r"><button data-btn="gas">GAS</button><button data-btn="brake">BRAKE</button></div>
 
+<script>
+// Load diagnostics: classic script so it still runs when ES modules are blocked (e.g. double-clicking index.html).
+(function () {
+  var say = function (m) { var e = document.getElementById('loaderr'); if (e) e.textContent = m; };
+  if (location.protocol === 'file:') say('This game must be opened through a web server (modules are blocked on file://). Use the website link, or run "npm start" / "python3 -m http.server" and open http://localhost.');
+  else if (!window.WebGL2RenderingContext) say('Your browser has no WebGL2. Try the latest Chrome, Edge or Firefox with hardware acceleration enabled.');
+  setTimeout(function () { if (!window.__mxReady) { var e = document.getElementById('loaderr'); if (e && !e.textContent) e.textContent = 'Still loading... if this stays here, hard-refresh (Ctrl+Shift+R) or try Chrome/Edge with hardware acceleration on.'; } }, 15000);
+  window.addEventListener('error', function (ev) { if (!window.__mxReady) say('Load error: ' + (ev.message || 'script failed') + (ev.filename ? ' (' + ev.filename.split('/').pop() + ':' + ev.lineno + ')' : '')); });
+})();
+</script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>
