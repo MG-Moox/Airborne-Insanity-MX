@@ -432,6 +432,7 @@ function deckHeight(x, z) {
 export const onDeck = (x, z) => deckHeight(x, z) > -1e8;
 
 export function heightAt(x, z) {
+  if (DEBUG.flat) return 0;
   let h = rawHeight(x, z);
   const f = featureHeight(x, z);
   if (f > 0) h += f;
@@ -440,6 +441,7 @@ export function heightAt(x, z) {
   return h;
 }
 export function normalAt(x, z, e = 0.25) {
+  if (DEBUG.flat) return [0, 1, 0];
   const hx = heightAt(x + e, z) - heightAt(x - e, z), hz = heightAt(x, z + e) - heightAt(x, z - e);
   const nx = -hx / (2 * e), nz = -hz / (2 * e), l = Math.sqrt(nx * nx + 1 + nz * nz);
   return [nx / l, 1 / l, nz / l];
@@ -448,6 +450,7 @@ export function normalAt(x, z, e = 0.25) {
 // ---------------------------------------------------------------- water
 // returns the water surface height at (x,z), or -Infinity if there is no water there
 export function waterLevelAt(x, z) {
+  if (DEBUG.flat) return -Infinity;
   const lr = lakeR(x, z);
   if (lr < 0.985) return LK.level;
   for (const rp of [river, creek]) {
@@ -473,6 +476,7 @@ export function surfaceAt(x, z, h) {
 
 // grip multiplier at a world position (used by the tyre model)
 export function gripAt(x, z, h) {
+  if (DEBUG.flat) return DEBUG.grip || 0.9;
   if (waterLevelAt(x, z) > -1e8) return 0.55;
   const s = surfaceAt(x, z, h);
   if (h > 410 && s.v > 0.5) return 0.62;          // snow
@@ -552,7 +556,9 @@ function propBlocked(x, z, pad) {
   for (const c of COLLIDERS) if (Math.hypot(c.x - x, c.z - z) < c.r + pad) return true;
   return false;
 }
+export const DEBUG = { noColliders: false, flat: false, grip: 0.9 };   // tests: ride through trees / buildings
 export function nearbyColliders(x, z, radius) {
+  if (DEBUG.noColliders) return [];
   const out = nearbyTrees(x, z, radius);
   for (const c of COLLIDERS) { const dx = c.x - x, dz = c.z - z; if (dx * dx + dz * dz < (radius + c.r) * (radius + c.r)) out.push(c); }
   return out;
@@ -586,8 +592,14 @@ export function nearbyColliders(x, z, radius) {
 // ---------------------------------------------------------------- spawn / fast travel
 export function spawnPoint(i) {
   const t = L.TELEPORTS[i];
-  const [x, z] = toWorld(t[1], t[2]);
-  return { name: t[0], x, z, yaw: (-t[3] * Math.PI) / 180 };
+  let [x, z] = toWorld(t[1], t[2]);
+  let yaw;
+  if (t[3] === 'auto') {                       // face downhill and start on the slope above the launch ramp
+    const e = 6, gx = heightAt(x + e, z) - heightAt(x - e, z), gz = heightAt(x, z + e) - heightAt(x, z - e), gl = Math.hypot(gx, gz) || 1;
+    const dx = -gx / gl, dz = -gz / gl;
+    x -= dx * 24; z -= dz * 24; yaw = Math.atan2(-dx, -dz);
+  } else yaw = (-t[3] * Math.PI) / 180;
+  return { name: t[0], x, z, yaw, cat: t[4], blurb: t[5] };
 }
 export const TELEPORT_COUNT = L.TELEPORTS.length;
 export const WORLD_BOX = { x0: toWorld(0, 0)[0], z0: toWorld(0, 0)[1], x1: toWorld(L.IMG_W, L.IMG_H)[0], z1: toWorld(L.IMG_W, L.IMG_H)[1] };

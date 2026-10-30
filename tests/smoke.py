@@ -12,7 +12,7 @@ with sync_playwright() as p:
     errors = []
     pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     pg.on('pageerror', lambda e: errors.append(str(e)))
-    pg.goto(url)
+    pg.goto(url + ('    pg.goto(url)' if '?' in url else '?') + 'q=0')   # LOW quality: software GL is far too slow for HIGH/ULTRA
     t0 = time.time()
     while time.time() - t0 < 120 and not pg.evaluate("!!window.__mxReady"): time.sleep(0.3)
     check('game loads', pg.evaluate("!!window.__mxReady"), f'{time.time()-t0:.1f}s')

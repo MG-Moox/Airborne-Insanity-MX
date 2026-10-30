@@ -7,6 +7,8 @@ const LIME = [0.52, 0.93, 0.12], BLACK = [0.06, 0.06, 0.07], WHITE = [0.93, 0.93
   DARK = [0.16, 0.17, 0.19], SILVER = [0.74, 0.76, 0.8], ALU = [0.62, 0.64, 0.68], GOLD = [0.86, 0.62, 0.14], RUBBER = [0.04, 0.04, 0.045], SKIN = [0.85, 0.62, 0.48];
 const PANTS = [0.9, 0.91, 0.94], JERSEY = [0.07, 0.08, 0.09], BOOT = [0.1, 0.1, 0.11];
 
+const PLATE = [0.93, 0.93, 0.95], NUM = [0.06, 0.06, 0.07];
+let FOUR = false;                      // 4-stroke: slim header + big silencer instead of a 2-stroke expansion chamber
 const HUB_F = [0, -0.4, -0.7], HUB_R = [0, -0.4, 0.72];
 const HEAD = [0, 0.52, -0.47];
 const PIVOT = [0, -0.27, 0.16];
@@ -46,8 +48,8 @@ function buildBody() {
     g.box(0.07, 0.24, 0.5, LIME, m4mul(m4translate(s * 0.17, 0.36, 0.0), m4rotZ(-s * 0.08)));
     g.box(0.07, 0.2, 0.46, LIME, m4mul(m4translate(s * 0.15, 0.37, 0.48), m4rotZ(-s * 0.05)));           // side panels
     g.box(0.075, 0.28, 0.07, BLACK, m4translate(s * 0.215, 0.35, -0.55));                                // radiator guard
-    g.box(0.02, 0.19, 0.19, WHITE, m4translate(s * 0.2, 0.39, 0.52));                                    // side number plate
-    g.box(0.022, 0.11, 0.045, BLACK, m4translate(s * 0.21, 0.39, 0.52));
+    g.box(0.02, 0.19, 0.19, PLATE, m4translate(s * 0.2, 0.39, 0.52));                                    // side number plate
+    g.box(0.022, 0.11, 0.045, NUM, m4translate(s * 0.21, 0.39, 0.52));
   });
   // rear fender + tail light
   g.box(0.17, 0.03, 0.36, LIME, m4mul(m4translate(0, 0.46, 0.93), m4rotX(-0.55)));
@@ -55,9 +57,10 @@ function buildBody() {
   // exhaust: header out the front, expansion chamber along the right side, silencer
   tube(g, [0.04, 0.12, -0.3], [0.2, 0.0, -0.3], 0.025, SILVER);
   tube(g, [0.2, 0.0, -0.3], [0.2, 0.04, 0.0], 0.03, SILVER);
-  g.cyl(0.085, 0.035, 0.5, 10, SILVER, m4mul(m4translate(0.21, 0.07, 0.12), m4rotX(Math.PI / 2)));         // expansion chamber
+  if (!FOUR) g.cyl(0.085, 0.035, 0.5, 10, SILVER, m4mul(m4translate(0.21, 0.07, 0.12), m4rotX(Math.PI / 2)));   // 2-stroke expansion chamber
+  else { tube(g, [0.2, 0.04, 0.0], [0.21, 0.1, 0.4], 0.028, SILVER); g.box(0.2, 0.1, 0.2, SILVER, m4mul(m4translate(0, 0.33, -0.12), m4rotX(0.38))); }   // 4-stroke header + taller head
   g.cyl(0.04, 0.04, 0.34, 9, SILVER, m4mul(m4translate(0.22, 0.24, 0.46), m4rotX(Math.PI / 2 - 0.2)));     // link
-  g.cyl(0.07, 0.06, 0.4, 10, ALU, m4mul(m4translate(0.22, 0.38, 0.72), m4rotX(Math.PI / 2 + 0.1)));         // silencer
+  g.cyl(FOUR ? 0.085 : 0.07, FOUR ? 0.075 : 0.06, FOUR ? 0.5 : 0.4, 10, ALU, m4mul(m4translate(0.22, 0.38, FOUR ? 0.7 : 0.72), m4rotX(Math.PI / 2 + 0.1)));   // silencer
   g.cyl(0.062, 0.062, 0.035, 10, BLACK, m4mul(m4translate(0.22, 0.4, 0.92), m4rotX(Math.PI / 2 + 0.1)));
   // pegs, kick-side lever, chain
   g.box(0.1, 0.02, 0.06, SILVER, m4translate(0.27, -0.29, 0.06));
@@ -89,8 +92,8 @@ function buildFrontEnd() {
   tube(g, o([0.33, 0.645, -0.54]), o([0.18, 0.64, -0.62]), 0.007, SILVER);
   g.box(0.1, 0.07, 0.07, BLACK, m4translate(-0.25, 0.1, 0.0));                               // hand guards
   g.box(0.1, 0.07, 0.07, BLACK, m4translate(0.25, 0.1, 0.0));
-  g.box(0.25, 0.25, 0.03, WHITE, m4mul(m4translate(0, 0.12, -0.14), m4rotX(0.34)));          // front number plate
-  g.box(0.11, 0.13, 0.034, BLACK, m4mul(m4translate(0, 0.12, -0.14), m4rotX(0.34)));
+  g.box(0.25, 0.25, 0.03, PLATE, m4mul(m4translate(0, 0.12, -0.14), m4rotX(0.34)));          // front number plate
+  g.box(0.11, 0.13, 0.034, NUM, m4mul(m4translate(0, 0.12, -0.14), m4rotX(0.34)));
   g.box(0.25, 0.022, 0.032, LIME, m4mul(m4translate(0, 0.255, -0.16), m4rotX(0.34)));
   return g;
 }
@@ -196,9 +199,14 @@ export class RiderRagdoll {
   }
 }
 
-export function createBikeModel(rr, accent) {
-  const r = { makeMesh: (g) => rr.makeMesh(g), draw: (m, mat, o) => rr.draw(m, mat, { spec: 0.42, shin: 44, ...o }) };
-  if (accent) { LIME[0] = accent[0]; LIME[1] = accent[1]; LIME[2] = accent[2]; }
+// opts: [r,g,b] accent (legacy) or { accent, jersey, plate, four }
+export function createBikeModel(rr, opts) {
+  const o = Array.isArray(opts) ? { accent: opts } : opts || {};
+  const made = [];
+  const r = { makeMesh: (g) => { const m = rr.makeMesh(g); made.push(m); return m; }, draw: (m, mat, op) => rr.draw(m, mat, { spec: 0.42, shin: 44, ...op }) };
+  const set = (dst, src) => { dst[0] = src[0]; dst[1] = src[1]; dst[2] = src[2]; };
+  set(LIME, o.accent || [0.52, 0.93, 0.12]); set(JERSEY, o.jersey || [0.07, 0.08, 0.09]); set(PLATE, o.plate || [0.93, 0.93, 0.95]);
+  set(NUM, PLATE[0] * 0.3 + PLATE[1] * 0.6 + PLATE[2] * 0.1 > 0.45 ? [0.06, 0.06, 0.07] : [0.95, 0.95, 0.97]); FOUR = !!o.four;
   const body = r.makeMesh(buildBody()), front = r.makeMesh(buildFrontEnd()), wheelF = r.makeMesh(buildWheel(1.0)), wheelR = r.makeMesh(buildWheel(1.5)), fender = r.makeMesh(buildFender());
   const helmet = r.makeMesh(buildHelmet()), boot = r.makeMesh(buildBoot()), chest = r.makeMesh(buildChest()), hip = r.makeMesh(buildHip());
   const limbPants = r.makeMesh(unitLimb(PANTS)), limbJersey = r.makeMesh(unitLimb(JERSEY)), limbLime = r.makeMesh(unitLimb(LIME)), limbDark = r.makeMesh(unitLimb(DARK)), limbGold = r.makeMesh(unitLimb(GOLD)), limbBoot = r.makeMesh(unitLimb(BOOT)), limbAlu = r.makeMesh(unitLimb(ALU));
@@ -277,6 +285,7 @@ export function createBikeModel(rr, accent) {
       if (!opts.ragdoll) drawRiderPosed(M, pose, opts.pov);
     },
     drawRagdoll,
+    dispose() { made.forEach((m) => rr.freeMesh(m)); made.length = 0; },
     // soft blob shadow on the ground under the bike (n = ground normal, fwd = bike forward)
     drawShadow(x, y, z, n, fwd, size, a) {
       const d = fwd[0] * n[0] + fwd[1] * n[1] + fwd[2] * n[2];

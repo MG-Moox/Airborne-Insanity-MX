@@ -42,6 +42,37 @@
   #board { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 18px 26px; min-width: 300px; pointer-events: auto; }
   #board h2 { margin: 0 0 10px; font-style: italic; letter-spacing: 1px; }
   #board div { display: flex; justify-content: space-between; gap: 30px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  #start { place-items: center start; background: linear-gradient(90deg, #071019f2 0%, #071019c0 36%, #07101900 74%); }
+  #start .card.menu { margin-left: 4vw; text-align: left; max-width: 520px; }
+  .menu .bikeline { margin: 14px 0 6px; font-weight: 800; letter-spacing: 1px; color: var(--lime); font-size: 14px; }
+  .mbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 14px; }
+  .mbtns .btn, .mbtns .go { margin: 0; }
+  .mbtns .go.big { grid-column: span 2; font-size: 22px; padding: 16px; }
+  .mlabel { font-size: 11px; letter-spacing: 2px; color: #b9c4ce; margin-top: 4px; }
+  @media (max-height: 760px) { #keytable { display: none; } }
+  @media (max-width: 800px) { #start { place-items: center; background: #071019d8; } #start .card.menu { margin: 0; } }
+  #garage { position: fixed; right: 12px; top: 12px; bottom: 12px; width: 370px; z-index: 6; padding: 14px; display: flex; flex-direction: column; }
+  #garage.hide { display: none; }
+  .ghead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ghead h2 { margin: 0; font-style: italic; letter-spacing: 1px; }
+  .ghead .go { margin: 0; padding: 9px 20px; }
+  .gbody { overflow: auto; flex: 1; padding-right: 4px; }
+  .gsec { margin-bottom: 14px; }
+  .gl { font-size: 11px; letter-spacing: 2px; color: #b9c4ce; margin-bottom: 6px; font-weight: 800; }
+  .gn { font-size: 12px; color: #b9c4ce; margin-top: 5px; }
+  .cgrid { display: grid; gap: 6px; }
+  .cbtn { text-align: left; background: rgba(255,255,255,.07); color: #fff; border: 2px solid transparent; border-radius: 10px; padding: 8px 10px; cursor: pointer; }
+  .cbtn b { display: block; font-size: 14px; } .cbtn small { color: #b9c4ce; font-size: 12px; }
+  .cbtn.on { border-color: var(--lime); background: rgba(168,255,69,.14); }
+  .bar { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; }
+  .bar i { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; } .bar u { display: block; height: 100%; background: linear-gradient(90deg, #a8ff45, #ffd23f); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+  .sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); cursor: pointer; }
+  .sw.on { border-color: #fff; box-shadow: 0 0 0 3px var(--lime); }
+  .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+  .seg button { flex: 1; background: rgba(255,255,255,.1); color: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; font-size: 12px; font-weight: 800; cursor: pointer; }
+  .seg button.on { background: var(--lime); color: #101808; }
+  @media (max-width: 800px) { #garage { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 50vh; } }
   .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: linear-gradient(#07101990, #071019e0); z-index: 5; }
   .card { max-width: 640px; width: calc(100vw - 28px); padding: 26px 28px; text-align: center; max-height: 92vh; overflow: auto; }
   h1 { font-size: clamp(36px, 8vw, 70px); line-height: .9; margin: 0 0 10px; font-weight: 1000; font-style: italic; letter-spacing: -2px; }
@@ -54,8 +85,19 @@
   table.keys { margin: 12px auto 4px; border-collapse: collapse; font-size: 13px; text-align: left; }
   table.keys td { padding: 3px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
   kbd { background: rgba(255,255,255,.14); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12px; }
-  #bigmap { position: fixed; inset: 0; z-index: 4; background: rgba(5,9,13,.92); display: grid; place-items: center; }
-  #bigmap canvas { max-width: 96vw; max-height: 92vh; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
+  #bigmap { position: fixed; inset: 0; z-index: 7; background: rgba(5,9,13,.92); display: flex; gap: 12px; padding: 10px; align-items: center; justify-content: center; }
+  #bigmap canvas { max-width: calc(100vw - 330px); max-height: 90vh; min-width: 0; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
+  #spots { width: 300px; max-height: 90vh; padding: 12px; display: flex; flex-direction: column; flex: none; }
+  #spots h3 { margin: 0 0 8px; font-style: italic; letter-spacing: 1px; }
+  .stabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .stabs button { background: rgba(255,255,255,.1); color: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; font-size: 12px; font-weight: 800; cursor: pointer; }
+  .stabs button.on { background: var(--lime); color: #101808; }
+  .slist { overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .srow2 { display: flex; gap: 10px; align-items: center; text-align: left; background: rgba(255,255,255,.07); color: #fff; border: 1px solid transparent; border-radius: 9px; padding: 7px 9px; cursor: pointer; font-size: 13px; font-weight: 700; }
+  .srow2:hover { border-color: var(--lime); background: rgba(168,255,69,.12); }
+  .srow2 .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--lime); color: #101808; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
+  .srow2 small { display: block; font-weight: 500; }
+  @media (max-width: 800px) { #bigmap { flex-direction: column; } #bigmap canvas { max-width: 96vw; max-height: 50vh; } #spots { width: 96vw; max-height: 38vh; } }
   #bigmap .cap { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 13px; color: #b9c4ce; }
   @media (max-width: 700px) { #mini { width: 120px; height: 120px; } #lap { font-size: 11px; min-width: 130px; } #lap .big { font-size: 18px; } }
 </style>
@@ -89,7 +131,7 @@
   <div id="board" class="glass hide"></div>
 </div>
 
-<div id="bigmap" class="hide"><canvas id="mapc"></canvas><div class="cap">Click a numbered spot (or press 1-8) to fast travel &nbsp;&middot;&nbsp; M to close</div></div>
+<div id="bigmap" class="hide"><canvas id="mapc"></canvas><aside id="spots" class="glass"></aside><div class="cap">Pick a category, then click a spot on the map or in the list &nbsp;&middot;&nbsp; keys 1-8 = zones &nbsp;&middot;&nbsp; M to close</div></div>
 
 <div id="loading" class="overlay"><div class="card glass">
   <h1>AIRBORNE<span class="l">INSANITY MX</span></h1>
@@ -98,21 +140,30 @@
   <small id="loaderr"></small>
 </div></div>
 
-<div id="start" class="overlay hide"><div class="card glass">
+<div id="start" class="overlay hide"><div class="card glass menu">
   <h1>AIRBORNE<span class="l">INSANITY MX</span></h1>
-  <small>ONE MAP. ENDLESS LINES. &mdash; free-roam motocross with realistic bike physics</small>
-  <table class="keys" id="keytable"></table>
+  <small>OPEN-WORLD MOTOCROSS SIMULATOR</small>
+  <div class="bikeline" id="bikeline"></div>
+  <div class="mbtns">
+    <button class="go big" id="go">&#9654; FREE RIDE</button>
+    <button class="btn" id="garagebtn">GARAGE</button>
+    <button class="btn" id="spotbtn">START SPOT: <span id="spotname">FESTIVAL</span></button>
+    <button class="btn alt" id="ctlbtn">CONTROLS</button>
+  </div>
+  <div class="mlabel">GRAPHICS</div>
   <div id="qrow"></div>
-  <button class="go" id="go">RIDE</button><button class="btn alt" id="ctlbtn">CONTROLS</button>
+  <table class="keys" id="keytable"></table>
 </div></div>
 
 <div id="pause" class="overlay hide"><div class="card glass">
   <h1 style="font-size:40px">PAUSED</h1>
   <div id="pq"></div>
-  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn alt" id="ctlbtn2">CONTROLS</button><button class="btn alt" id="mute">SOUND ON</button></p>
+  <p><button class="go" id="resume">RESUME</button><button class="btn alt" id="restart">RESPAWN AT START</button><button class="btn" id="garagebtn2">GARAGE</button><button class="btn" id="mapbtn2">MAP / TELEPORT</button><button class="btn alt" id="ctlbtn2">CONTROLS</button><button class="btn alt" id="mute">SOUND ON</button></p>
   <small>Mouse drag: look around &middot; wheel: zoom (orbit cam) &middot; H: this help</small>
 </div></div>
 
+
+<aside id="garage" class="glass hide"></aside>
 
 <script>
 // Load diagnostics: classic script so it still runs when ES modules are blocked (e.g. double-clicking index.html).

@@ -1,7 +1,8 @@
 // main.js - game loop: physics (fixed 240 Hz), AI race, cameras, rendering, HUD, audio, particles.
 import { Renderer } from './renderer.js';
 import { World } from './scene.js';
-import { Bike } from './physics.js';
+import { Bike, P } from './physics.js';
+import { initGarage, applySetup, classOf, COLOURS, GEAR_COLOURS, PLATES } from './garage.js';
 import { createBikeModel, RiderRagdoll } from './bikeModel.js';
 import { Camera, CAM_MODES } from './camera.js';
 import { Input } from './input.js';
@@ -39,7 +40,7 @@ async function boot() {
   try { world.init(); } catch (e) { return fail('World build failed: ' + (e.message || e)); }
 
   const bike = new Bike();
-  const model = createBikeModel(renderer, [0.52, 0.93, 0.12]);
+  let model = null;
   const aiModels = ACCENTS.map((c) => createBikeModel(renderer, c));
   const rider = new RiderRagdoll();
   const camera = new Camera();
@@ -48,6 +49,26 @@ async function boot() {
   const hud = new Hud(mapImg);
   const lapTimer = new LapTimer();
   const race = new Race(bike);
+  let garageOpen = false, prevCamMode = 0;
+  const bikeLine = () => { const s = garage.setup, c = classOf(s), e = $('bikeline'); if (e) e.textContent = c.name + '  \u00b7  ' + COLOURS[s.colour][0] + ' / ' + GEAR_COLOURS[s.gear][0] + ' GEAR'; };
+  const applyGarage = (s) => {
+    applySetup(P, s); const c = classOf(s);
+    if (model) model.dispose();
+    model = createBikeModel(renderer, { accent: COLOURS[s.colour][1], jersey: GEAR_COLOURS[s.gear][1], plate: PLATES[s.plate][1], four: c.four });
+    audio.setEngine(c.audio); bikeLine();
+  };
+  const garage = initGarage({
+    change: applyGarage,
+    open: () => {
+      garageOpen = true; prevCamMode = camera.mode; camera.setMode(3); camera.orbitDist = 4.8; camera.orbitPitch = 0.2;
+      $('start').classList.add('hide'); $('pause').classList.add('hide'); hud.show(false); hud.toggleMap(false);
+    },
+    close: () => {
+      garageOpen = false; camera.setMode(running ? prevCamMode : 3);
+      if (running) { hud.show(true); $('pause').classList.remove('hide'); } else $('start').classList.remove('hide');
+    },
+  });
+  applyGarage(garage.setup);
   const pose = { standing: 0, forward: 0, lean: 0 };
   const aiPose = ACCENTS.map(() => ({ standing: 0, forward: 0.2, lean: 0 }));
 
@@ -62,6 +83,8 @@ async function boot() {
     lapTimer.prevS = null;
     hud.popup('FAST TRAVEL  ·  ' + sp.name, 'good');
     if (hud.mapOpen) { hud.toggleMap(false); }
+    if (paused) togglePause();
+    const sn = $('spotname'); if (sn) sn.textContent = sp.name;
   };
   hud.onTeleport = doTeleport;
 
@@ -132,7 +155,14 @@ async function boot() {
     $('start').classList.add('hide');
     audio.start(); running = true; hud.show(true); last = performance.now();
   };
-  if (params.has('auto')) begin(); else { $('start').classList.remove('hide'); $('go').onclick = begin; }
+  const rideMode = camera.mode;
+  const begin2 = () => { camera.setMode(rideMode); begin(); };
+  $('garagebtn').onclick = () => garage.open();
+  $('garagebtn2').onclick = () => garage.open();
+  $('spotbtn').onclick = () => { hud.toggleMap(true); };
+  $('mapbtn2').onclick = () => { hud.toggleMap(true); };
+  const sn = T.spawnPoint(params.has('tp') ? clamp(parseInt(params.get('tp'), 10) - 1, 0, T.TELEPORT_COUNT - 1) : 0); $('spotname').textContent = sn.name;
+  if (params.has('auto')) begin(); else { camera.orbitDist = 7.5; camera.orbitPitch = 0.28; camera.setMode(3); $('start').classList.remove('hide'); $('go').onclick = begin2; }
   addEventListener('keydown', (e) => { if (!running && (e.code === 'Enter' || e.code === 'Space') && !$('start').classList.contains('hide')) begin(); });
   $('c').addEventListener('pointerdown', () => audio.start());
 
@@ -197,8 +227,11 @@ async function boot() {
   function frame(now) {
     requestAnimationFrame(frame);
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const rdt = dt;
     if (paused) dt = 0;
+    if (garageOpen || !running) camera.orbitYaw += rdt * (garageOpen ? 0.35 : 0.18);
     controls.setActive(running && !paused);
+    if (hud.mapOpen && (!running || paused)) hud.redrawMap({ x: bike.pos[0], z: bike.pos[2], yaw: bike.yaw, ais: [] });
     input.speed = Math.hypot(bike.v[0], bike.v[2]);
     const inpRaw = input.poll(dt);
     let inp = inpRaw;
@@ -277,7 +310,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // handy for debugging / automated tests
-  window.__mx = { bike, camera, world, race, T, hud, input, renderer, startRace, doTeleport, lapTimer, setPaused: (v) => { paused = v; }, get running() { return running; } };
+  window.__mx = { P, garage, bike, camera, world, race, T, hud, input, renderer, startRace, doTeleport, lapTimer, setPaused: (v) => { paused = v; }, get running() { return running; } };
   window.__mxReady = true;
 }
 

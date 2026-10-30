@@ -14,7 +14,10 @@ export const P = {
   BMAXF: 3600, BMAXR: 2000,
   CRR: 0.03,
   MEFF: 50,
+  LATMIN: 0.34,              // a locked / spinning tyre still keeps this share of its grip sideways (stops violent spin-outs)
+  CS: 0.09, CS0: 0.12,       // tyre cornering softness: lateral force saturates at a slip angle of ~CS rad (lower = stiffer)
 };
+const WHEELBASE = 1.42;
 const MOUNTS = [{ y: 0.05, z: -0.70 }, { y: 0.05, z: 0.72 }];   // 0 = front, 1 = rear
 // extra body points that collide with the ground (bash plate, pegs, bar ends, tail, head)
 const BODY_POINTS = [
@@ -141,10 +144,13 @@ export class Bike {
     const vF = dot(this.v, fwd);
     this.speed = vF;
 
-    // steering angle (front wheel): speed-sensitive, rate limited
-    const maxSteer = 0.62 / (1 + Math.pow(Math.abs(vF) / 6, 2));
+    // steering angle (front wheel). Lock is limited to what the front tyre can actually grip at this speed
+    // (lateral accel = v^2 tan(steer) / wheelbase), so a full-lock input is "as hard as the dirt allows" rather than a spin-out.
+    const vAbs = Math.max(Math.abs(vF), 0.5);
+    const aLim = clamp(P.MU * (this.wheels[0].grip || 0.9) * G * 0.8, 3.5, 8.5);
+    const maxSteer = Math.min(0.62, Math.atan(WHEELBASE * aLim / (vAbs * vAbs)));
     const tgt = inp.steer * maxSteer;
-    const rate = (Math.abs(tgt) > Math.abs(this.steer) ? 2.6 : 4.5) * dt;
+    const rate = ((Math.abs(tgt) > Math.abs(this.steer) ? 2.6 : 4.5) / (1 + vAbs / 11)) * dt;   // bars move slower at speed
     this.steer += clamp(tgt - this.steer, -rate, rate);
 
     let F = [0, -P.M * G, 0];
@@ -189,7 +195,7 @@ export class Bike {
       const vl = dot(vc, f), vs = dot(vc, rt);
       const grip = gripAt(C[0], C[2], C[1]);
       W.grip = grip;
-      const Fmax = P.MU * grip * Fs;
+      const Fmax = P.MU * grip * Math.max(Fs, front ? 0 : 500);   // rider weight keeps a little rear grip even when braking unloads it
 
       let Fx = 0, locked = false, spinning = false;
       if (!front) {
@@ -203,13 +209,16 @@ export class Bike {
       let brake = front ? inp.brakeF * P.BMAXF : inp.brakeR * P.BMAXR;
       if (brake <= 0 && inp.throttle < 0.05 && Math.abs(vl) < 0.6 && !crashed) brake = 0.6 * Fmax; // parking hold
       if (brake > 0) {
+        // ordinary brake presses are ABS-like (they can't lock the wheel); only a deliberate full press (Space / B) can lock and skid
+        const cmd = front ? inp.brakeF : inp.brakeR;
+        if (cmd < 0.95) brake = Math.min(brake, 0.88 * Fmax);
         const fb = Math.min(brake, Fmax, P.MEFF * Math.abs(vl) / dt);
         Fx -= Math.sign(vl) * fb;
         if (brake >= Fmax * 0.98 && Math.abs(vl) > 2) locked = true;
       }
       Fx = clamp(Fx, -Fmax, Fmax);
-      const FyLim = Math.sqrt(Math.max(0, Fmax * Fmax - Fx * Fx));
-      let Fy = -FyLim * Math.tanh(vs / (0.25 * Math.abs(vl) + 0.15));
+      const FyLim = Math.max(Math.sqrt(Math.max(0, Fmax * Fmax - Fx * Fx)), P.LATMIN * Fmax);
+      let Fy = -FyLim * Math.tanh(vs / (P.CS * Math.abs(vl) + P.CS0));
       const FyStab = P.MEFF * Math.abs(vs) / dt;
       if (Math.abs(Fy) > FyStab) Fy = Math.sign(Fy) * FyStab;
       W.slip = Math.abs(vs);
@@ -270,20 +279,28 @@ export class Bike {
       if (pitch < -0.5 && inp.pitch >= 0) pitchT += (-0.5 - pitch) * 2600;
     }
     T = add(T, mul(right, pitchT - (grounded ? 120 : 35) * wRight));
+    if (grounded && !crashed) T = add(T, mul(up, -110 * dot(this.w, up)));       // gyro / tyre scrub: a spinning bike settles instead of whirling
 
     if (!crashed) {
       if (grounded) {
         const wup = [0, 1, 0];
         const upProj = norm(sub(wup, mul(fwd, dot(fwd, wup))));
         const roll = Math.atan2(-dot(upProj, right), dot(upProj, up));
-        const yawRate = this.w[1];
-        const tgtRoll = clamp(-Math.atan((vF * yawRate) / G) * 0.9 + inp.roll * 0.25, -0.95, 0.95);
+        // lean target is feed-forward from the commanded turn (v^2 tan(steer) / wheelbase), not from the measured yaw rate:
+        // using the measured yaw made lean -> yaw -> more lean a runaway that flung the bike around.
+        const ayCmd = (vF * vF * Math.tan(this.steer)) / WHEELBASE;
+        const rawT = clamp(Math.atan(ayCmd / G) * 0.85 + inp.roll * 0.2, -0.7, 0.7);
+        this.tgtRoll = (this.tgtRoll || 0) + (rawT - (this.tgtRoll || 0)) * Math.min(1, dt * 7);   // riders lean in smoothly
         const wRoll = dot(this.w, fwd);
-        const tq = clamp(3500 * (tgtRoll - roll) - 380 * wRoll, -3000, 3000);
+        const tq = clamp(2700 * (this.tgtRoll - roll) - 430 * wRoll, -2200, 2200);
         T = add(T, mul(fwd, tq));
         this.roll = roll;
       } else {
-        T = add(T, mul(fwd, inp.roll * 700 - 40 * dot(this.w, fwd)));
+        // in the air the rider squares the bike up for landing unless you are deliberately leaning / whipping
+        const wup = [0, 1, 0], upProj = norm(sub(wup, mul(fwd, dot(fwd, wup))));
+        const rollA = Math.atan2(-dot(upProj, right), dot(upProj, up));
+        const level = Math.abs(inp.roll) < 0.15 && this.air.on ? clamp(-1500 * rollA, -1100, 1100) : 0;
+        T = add(T, mul(fwd, inp.roll * 700 - 70 * dot(this.w, fwd) + level));
         T = add(T, mul(up, inp.yaw * 350 - 25 * dot(this.w, up)));
       }
     }

@@ -1,6 +1,8 @@
 // audio.js - synthesised engine, wind, tyre, impact and splash sounds (Web Audio, no files).
 export class Audio {
-  constructor() { this.ctx = null; this.muted = false; this.ok = false; }
+  constructor() { this.ctx = null; this.muted = false; this.ok = false; this.pm = 1; this.wave = 'sawtooth'; }
+  // engine character per bike class: pitch multiplier + waveform (2-strokes are higher and raspier, 4-strokes deeper and rounder)
+  setEngine(e) { this.pm = e.pitch; this.wave = e.wave; if (this.o1) { this.o1.type = e.wave; this.o3.type = e.wave; } }
   start() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
@@ -14,6 +16,7 @@ export class Audio {
       const g2 = c.createGain(); g2.gain.value = 0.5; const g3 = c.createGain(); g3.gain.value = 0.35;
       this.o1.connect(this.lp); this.o2.connect(g2); g2.connect(this.lp); this.o3.connect(g3); g3.connect(this.lp);
       this.lp.connect(this.eng); this.eng.connect(this.master);
+      this.o1.type = this.wave; this.o3.type = this.wave;
       [this.o1, this.o2, this.o3].forEach((o) => o.start());
       // noise source for wind / tyres / splash
       const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = buf.getChannelData(0);
@@ -40,9 +43,9 @@ export class Audio {
     if (!grounded || (bike.wheels[1].omega * 0.34 > sp + 4)) rpm = Math.min(1, rpm + th * 0.35);
     rpm = Math.max(0.2, Math.min(1, rpm * (0.55 + 0.45 * Math.max(th, 0.3))));
     this.rpm = rpm; this.gear = g + 1;
-    const f = 38 + rpm * 120;
+    const f = (38 + rpm * 120) * this.pm;
     this.o1.frequency.setTargetAtTime(f, t, 0.04); this.o2.frequency.setTargetAtTime(f * 0.5, t, 0.04); this.o3.frequency.setTargetAtTime(f * 1.005 + 1.5, t, 0.04);
-    this.lp.frequency.setTargetAtTime(500 + rpm * 1800 + th * 900, t, 0.05);
+    this.lp.frequency.setTargetAtTime((500 + rpm * 1800 + th * 900) * (this.pm < 1 ? 0.8 : 1), t, 0.05);
     this.eng.gain.setTargetAtTime(crashed ? 0.02 : 0.16 + th * 0.12 + rpm * 0.05, t, 0.05);
     this.wind.g.gain.setTargetAtTime(Math.min(0.3, sp / 130), t, 0.1); this.wind.fl.frequency.setTargetAtTime(300 + sp * 22, t, 0.1);
     const slide = grounded ? Math.min(1, (bike.wheels[1].slip + bike.wheels[0].slip) * 0.12) : 0;

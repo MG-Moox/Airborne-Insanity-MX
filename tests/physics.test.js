@@ -56,9 +56,11 @@ console.log('  accel top speed km/h', (r.maxV * 3.6).toFixed(0), 'crashed', r.cr
 check('accelerates quickly', r.maxV > 24 && !r.crashed);
 
 // ---- corner both ways
+T.DEBUG.noColliders = true;   // this test is about turn physics, not about dodging trees
 const rr = run(10, (b, t) => ({ ...idle, throttle: t < 3 ? 0.8 : 0.3, steer: t > 3 ? 0.5 : 0 }), at(1000, 1000, 90));
 const rl = run(10, (b, t) => ({ ...idle, throttle: t < 3 ? 0.8 : 0.3, steer: t > 3 ? -0.5 : 0 }), at(1000, 1000, 90));
-console.log('  right roll', rr.b.roll.toFixed(2), 'yawRate', rr.b.w[1].toFixed(2), '| left roll', rl.b.roll.toFixed(2), 'yawRate', rl.b.w[1].toFixed(2));
+console.log('  crashed', rr.crashed, rr.crashMsg, '/', rl.crashed, rl.crashMsg); console.log('  right roll', rr.b.roll.toFixed(2), 'yawRate', rr.b.w[1].toFixed(2), '| left roll', rl.b.roll.toFixed(2), 'yawRate', rl.b.w[1].toFixed(2));
+T.DEBUG.noColliders = false;
 check('leans into turns', rr.b.roll > 0.05 && rl.b.roll < -0.05 && rr.b.w[1] < 0 && rl.b.w[1] > 0 && !rr.crashed && !rl.crashed);
 
 // ---- braking

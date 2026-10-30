@@ -18,6 +18,7 @@ export class Hud {
     this.zoneId = null; this.zoneT = 0; this.mapOpen = false;
     this.onTeleport = null;
     this.el.mapc.addEventListener('click', (e) => this._mapClick(e));
+    this.spotCat = 'ZONES'; this.hoverSpot = -1; this.spotUI = null;
   }
   show(v) { this.el.hud.classList.toggle('hide', !v); }
 
@@ -105,17 +106,45 @@ export class Hud {
     if (this.mapOpen) {
       const cv = this.el.mapc;
       cv.width = T.LAYOUT.IMG_W; cv.height = T.LAYOUT.IMG_H;
+      this._buildSpots();
     }
     return this.mapOpen;
   }
+  // category tabs + clickable list of quick teleports beside the map
+  _buildSpots() {
+    const host = $('spots'); if (!host) return;
+    const cats = T.LAYOUT.TELEPORT_CATS, list = T.LAYOUT.TELEPORTS;
+    host.innerHTML = '<h3>QUICK TELEPORT</h3><div class="stabs"></div><div class="slist"></div><button class="btn alt" id="mapclose" style="width:100%;margin:8px 0 0">CLOSE MAP</button>';
+    const tabs = host.querySelector('.stabs'), box = host.querySelector('.slist');
+    const draw = () => {
+      tabs.innerHTML = ''; box.innerHTML = '';
+      cats.forEach((c) => { const b = document.createElement('button'); b.textContent = c; b.className = c === this.spotCat ? 'on' : ''; b.onclick = () => { this.spotCat = c; draw(); }; tabs.appendChild(b); });
+      let n = 0;
+      list.forEach((t, i) => {
+        if (t[4] !== this.spotCat) return; n++;
+        const r = document.createElement('button'); r.className = 'srow2';
+        r.innerHTML = `<span class="num">${this.spotCat === 'ZONES' ? i + 1 : n}</span><span class="nm">${t[0]}<small>${t[5] || ''}</small></span>`;
+        r.onmouseenter = () => { this.hoverSpot = i; }; r.onmouseleave = () => { this.hoverSpot = -1; };
+        r.onclick = () => this.onTeleport && this.onTeleport(i);
+        box.appendChild(r);
+      });
+    };
+    draw();
+    host.querySelector('#mapclose').onclick = () => { this.toggleMap(false); if (this.onMapClose) this.onMapClose(); };
+  }
+  redrawMap(s) { if (this.mapOpen) this._bigMap(s); }
   _bigMap(s) {
     const cv = this.el.mapc, c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0);
     if (this.img && this.img.complete) c.drawImage(this.img, 0, 0);
+    let n = 0;
     T.LAYOUT.TELEPORTS.forEach((t, i) => {
-      c.fillStyle = '#0b1118e6'; c.strokeStyle = '#a8ff45'; c.lineWidth = 3;
-      c.beginPath(); c.arc(t[1], t[2], 20, 0, 7); c.fill(); c.stroke();
-      c.fillStyle = '#a8ff45'; c.font = 'bold 24px system-ui'; c.textAlign = 'center'; c.fillText(i + 1, t[1], t[2] + 8);
+      if (t[4] !== this.spotCat) return; n++;
+      const hot = i === this.hoverSpot, r = hot ? 26 : 20;
+      c.fillStyle = hot ? '#a8ff45' : '#0b1118e6'; c.strokeStyle = '#a8ff45'; c.lineWidth = 3;
+      c.beginPath(); c.arc(t[1], t[2], r, 0, 7); c.fill(); c.stroke();
+      c.fillStyle = hot ? '#0b1118' : '#a8ff45'; c.font = 'bold 24px system-ui'; c.textAlign = 'center'; c.fillText(this.spotCat === 'ZONES' ? i + 1 : n, t[1], t[2] + 8);
+      if (hot) { c.font = 'bold 26px system-ui'; c.lineWidth = 6; c.strokeStyle = '#000'; c.strokeText(t[0], t[1], t[2] - 34); c.fillStyle = '#fff'; c.fillText(t[0], t[1], t[2] - 34); }
     });
     for (const a of s.ais || []) { const [ax, ay] = T.toMap(a.x, a.z); c.fillStyle = '#ff5a4a'; c.beginPath(); c.arc(ax, ay, 8, 0, 7); c.fill(); }
     const [px, py] = T.toMap(s.x, s.z);
@@ -128,7 +157,7 @@ export class Hud {
     const cv = this.el.mapc, r = cv.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * cv.width, y = ((e.clientY - r.top) / r.height) * cv.height;
     let best = -1, bd = 40;
-    T.LAYOUT.TELEPORTS.forEach((t, i) => { const d = Math.hypot(t[1] - x, t[2] - y); if (d < bd) { bd = d; best = i; } });
+    T.LAYOUT.TELEPORTS.forEach((t, i) => { if (t[4] !== this.spotCat) return; const d = Math.hypot(t[1] - x, t[2] - y); if (d < bd) { bd = d; best = i; } });
     if (best >= 0 && this.onTeleport) this.onTeleport(best);
   }
 }

@@ -129,7 +129,7 @@ export class Input {
     const gp = (navigator.getGamepads && navigator.getGamepads()[0]) || null;
     let thr = d('throttle') || t.gas ? 1 : 0;
     let brF = 0, brR = 0;
-    if (d('brake') || t.brake) { brF = 0.75; brR = 0.9; }
+    if (d('brake') || t.brake) { brF = 0.85; brR = 0.55; }          // front-biased like a real bike: the rear locks far less easily
     if (d('rearBrake') || t.rear) brR = 1;
     if (d('frontBrake') || t.front) brF = 1;
     let steer = (d('right') ? 1 : 0) - (d('left') ? 1 : 0);

@@ -81,7 +81,7 @@ export const ZONES = [
   { id: 'festival', name: 'FESTIVAL', sub: 'Rest + vibes', c: [850, 950], r: 260 },
 ];
 // fast travel spots (key 1-8): [zone id, px, py, heading deg]
-export const TELEPORTS = [
+const ZONE_TELEPORTS = [
   ['FESTIVAL', 960, 1010, 0], ['MX TRACK', 995, 655, 90], ['JUMP ZONE', 540, 560, 90], ['RIVER CROSSING', 790, 560, 90],
   ['FOREST TRAILS', 552, 294, 180], ['CLIFF LINE', 163, 468, 270], ['THE PEAK', 336, 211, 180], ['THE LAKE', 700, 1050, 270],
 ];
@@ -105,3 +105,33 @@ export const START_GATE = { p: [1005, 650], heading: 90 };
 export const TOWER = { p: [486, 520] };           // red/white billboard tower at the jump zone
 export const CABIN = { p: [292, 150] };            // mountain hut on the peak
 export const WATERFALL = { top: [355, 332], bottom: [350, 372] };
+
+// ---- quick teleports (map menu). [name, px, py, heading deg | 'auto' (downhill), category, blurb]
+// The first 8 are the zones and keep keys 1-8. Everything else is generated from the layout data above.
+const _dir = (h) => [Math.sin((h * Math.PI) / 180), -Math.cos((h * Math.PI) / 180)];
+const _back = (px, py, h, d) => { const [dx, dy] = _dir(h); return [Math.round(px - dx * d), Math.round(py - dy * d)]; };
+const _head = (a, b) => ((Math.atan2(b[0] - a[0], -(b[1] - a[1])) * 180) / Math.PI + 360) % 360;
+export const TELEPORT_CATS = ['ZONES', 'JUMPS', 'PEAK', 'SCENIC', 'MX TRACK'];
+export const TELEPORTS = (() => {
+  const out = ZONE_TELEPORTS.map((t) => [...t, 'ZONES']);
+  const zoneOf = ['JUMP ZONE', 'FESTIVAL', 'CLIFF LINE'];
+  JUMPS.forEach((j, i) => {
+    const grp = i < 9 ? 0 : i < 12 ? 1 : 2, n = grp === 0 ? i + 1 : grp === 1 ? i - 8 : i - 11;
+    const [x, y] = _back(j[0], j[1], j[2], 20);
+    out.push([zoneOf[grp] + ' · KICKER ' + n, x, y, j[2], 'JUMPS', j[3] + ' m lip' + (j[4] ? ' · table' : '')]);
+  });
+  PEAK_JUMPS.forEach((j, i) => out.push(['PEAK · BIG AIR ' + (i + 1), j[0], j[1], 'auto', 'PEAK', j[2] + ' m launch ramp']));
+  out.push(['SUMMIT HUT', CABIN.p[0] + 10, CABIN.p[1] + 22, 180, 'SCENIC', 'Mountain top']);
+  out.push(['WATERFALL TOP', WATERFALL.top[0], WATERFALL.top[1] - 16, 180, 'SCENIC', 'Above the falls']);
+  out.push(['WATERFALL BASE', WATERFALL.bottom[0] + 22, WATERFALL.bottom[1] + 14, 0, 'SCENIC', 'Creek pool']);
+  out.push(['BILLBOARD TOWER', TOWER.p[0], TOWER.p[1] + 30, 0, 'SCENIC', 'Red + white landmark']);
+  out.push(['FERRIS WHEEL', WHEEL.p[0] - 8, WHEEL.p[1] + 38, 0, 'SCENIC', 'Festival landmark']);
+  out.push(['FESTIVAL STAGE', STAGE.p[0], STAGE.p[1] + 44, 0, 'SCENIC', 'Front of the stage']);
+  const dk = Math.round(_head([DOCK[0], DOCK[1]], [DOCK[2], DOCK[3]]));
+  out.push(['LAKE DOCK', DOCK[0] + 14, DOCK[1] - 6, dk, 'SCENIC', 'Ride out over the water']);
+  { const b = BRIDGES[0], [x, y] = _back(b[0], b[1], b[2], 22); out.push(['RIVER BRIDGE EAST', x, y, b[2], 'SCENIC', 'Wooden crossing']); }
+  { const b = BRIDGES[1], [x, y] = _back(b[0], b[1], b[2], 20); out.push(['RIVER BRIDGE NORTH', x, y, b[2], 'SCENIC', 'Wooden crossing']); }
+  const names = { 0: 'MX · START STRAIGHT', 3: 'MX · FAR SWEEPER', 6: 'MX · HAIRPIN', 9: 'MX · BACK SECTION', 12: 'MX · LONG STRAIGHT', 15: 'MX · RHYTHM LINE', 18: 'MX · FINAL CORNER' };
+  for (const k of Object.keys(names)) { const i = +k, a = TRACK[i], b = TRACK[(i + 1) % TRACK.length]; out.push([names[k], a[0], a[1], Math.round(_head(a, b)), 'MX TRACK', 'Race the loop']); }
+  return out;
+})();
