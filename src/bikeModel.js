@@ -196,7 +196,8 @@ export class RiderRagdoll {
   }
 }
 
-export function createBikeModel(r, accent) {
+export function createBikeModel(rr, accent) {
+  const r = { makeMesh: (g) => rr.makeMesh(g), draw: (m, mat, o) => rr.draw(m, mat, { spec: 0.42, shin: 44, ...o }) };
   if (accent) { LIME[0] = accent[0]; LIME[1] = accent[1]; LIME[2] = accent[2]; }
   const body = r.makeMesh(buildBody()), front = r.makeMesh(buildFrontEnd()), wheelF = r.makeMesh(buildWheel(1.0)), wheelR = r.makeMesh(buildWheel(1.5)), fender = r.makeMesh(buildFender());
   const helmet = r.makeMesh(buildHelmet()), boot = r.makeMesh(buildBoot()), chest = r.makeMesh(buildChest()), hip = r.makeMesh(buildHip());
@@ -287,7 +288,7 @@ export function createBikeModel(r, accent) {
       m[4] = n[0]; m[5] = n[1]; m[6] = n[2];
       m[8] = za[0] * size * 1.3; m[9] = za[1] * size * 1.3; m[10] = za[2] * size * 1.3;
       m[12] = x + n[0] * 0.06; m[13] = y + n[1] * 0.06; m[14] = z + n[2] * 0.06; m[15] = 1;
-      r.draw(shadow, m, { alpha: a });
+      r.draw(shadow, m, { alpha: a, spec: 0 });
     },
   };
 }

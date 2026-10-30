@@ -201,7 +201,7 @@ export function buildProps(r) {
       const p = (t, s) => [tx + dx * t + nx * w * s, groundY(tx + dx * t, tz + dz * t) + 0.5, tz + dz * t + nz * w * s];
       g.tri(p(t0, -1), p(t0, 1), p(t1, 1), [0.88, 0.96, 1]); g.tri(p(t0, -1), p(t1, 1), p(t1, -1), [0.88, 0.96, 1]);
     }
-    out.water.push({ mesh: r.makeMesh(g), alpha: 0.88 });
+    out.water.push({ mesh: r.makeMesh(g), alpha: 0.88, fall: true });
   }
   return out;
 }

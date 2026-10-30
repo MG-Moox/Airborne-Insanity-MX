@@ -29,7 +29,7 @@ async function boot() {
   try { const q = parseInt(localStorage.getItem('aimx-quality'), 10); if (q >= 0 && q <= 2) quality = q; } catch (_) {}
   if (params.has('q')) quality = clamp(parseInt(params.get('q'), 10) || 0, 0, 2);
   const applyQuality = (q) => {
-    quality = q; renderer.scale = [0.7, 1, 1][q]; renderer.resize(); world.setQuality(q);
+    quality = q; renderer.setQuality(q); renderer.resize(); world.setQuality(q);
     try { localStorage.setItem('aimx-quality', String(q)); } catch (_) {}
     document.querySelectorAll('.qbtn').forEach((b) => b.classList.toggle('sel', +b.dataset.q === q));
   };
@@ -96,7 +96,7 @@ async function boot() {
 
   for (const host of ['qrow', 'pq']) {
     const el = $(host);
-    ['LOW', 'MEDIUM', 'HIGH'].forEach((n, q) => { const b = document.createElement('button'); b.className = 'btn alt qbtn'; b.dataset.q = q; b.textContent = n; b.onclick = () => applyQuality(q); el.appendChild(b); });
+    ['LOW', 'HIGH', 'ULTRA'].forEach((n, q) => { const b = document.createElement('button'); b.className = 'btn alt qbtn'; b.dataset.q = q; b.textContent = n; b.onclick = () => applyQuality(q); el.appendChild(b); });
   }
   applyQuality(quality);
 
@@ -227,22 +227,27 @@ async function boot() {
     const rs = world.update(bike.pos[0], bike.pos[2], 1);
 
     // ---- render
-    renderer.begin(cam, gameTime);
-    world.draw(cam, dt);
     const pov = camera.isPOV;
     const ground = T.heightAt(bike.pos[0], bike.pos[2]);
     const drawBike = (b, mdl, p, opts, withShadow = true) => {
       mdl.draw(b, p, opts);
       if (withShadow) {
         const gy = T.heightAt(b.pos[0], b.pos[2]), h = b.pos[1] - gy;
-        mdl.drawShadow(b.pos[0], gy, b.pos[2], T.normalAt(b.pos[0], b.pos[2], 0.6), b.fwd, 0.8, 0.3 * clamp(1 - h / 7, 0, 1));
+        mdl.drawShadow(b.pos[0], gy, b.pos[2], T.normalAt(b.pos[0], b.pos[2], 0.6), b.fwd, 0.8, (renderer.shadowsOn ? 0.14 : 0.3) * clamp(1 - h / 7, 0, 1));
       }
     };
-    drawBike(bike, model, pose, { pov, ragdoll: rider.active });
-    if (rider.active) model.drawRagdoll(rider);
-    race.ais.forEach((a, i) => drawBike(a.bike, aiModels[i % aiModels.length], aiPose[i % aiPose.length], { ragdoll: false }));
+    const drawActors = (shadowPass) => {
+      drawBike(bike, model, pose, { pov: pov && !shadowPass, ragdoll: rider.active }, !shadowPass);
+      if (rider.active) model.drawRagdoll(rider);
+      race.ais.forEach((a, i) => drawBike(a.bike, aiModels[i % aiModels.length], aiPose[i % aiPose.length], { ragdoll: false }, !shadowPass));
+    };
+    renderer.renderShadows(bike.pos, cam.eye, (ci, R) => { world.draw(cam, 0, bike.pos, R); drawActors(true); });
+    renderer.begin(cam, gameTime);
+    world.draw(cam, dt);
+    drawActors(false);
     world.drawWater();
     particles.draw(renderer);
+    renderer.end({ speed: clamp((Math.hypot(bike.v[0], bike.v[1], bike.v[2]) - 18) / 40, 0, 1) * 0.22 });
 
     // ---- HUD
     if (running) {

@@ -122,6 +122,12 @@ export class World {
         let nx = (hl - hr) / (2 * e), nz = (hu - hd) / (2 * e); const nl = Math.sqrt(nx * nx + 1 + nz * nz);
         const n = [nx / nl, 1 / nl, nz / nl];
         const c = terrainColor(x, z, h, n);
+        {   // baked ambient occlusion: hollows and gullies darker, crests slightly lighter
+          const k = 3, il = Math.max(0, i - k), ir = Math.min(nv - 1, i + k), ju = Math.max(0, j - k), jd = Math.min(nv - 1, j + k);
+          const avg = (hs[j * nv + il] + hs[j * nv + ir] + hs[ju * nv + i] + hs[jd * nv + i]) * 0.25;
+          const ao = Math.max(0.55, Math.min(1.1, 1 - (avg - h) * 0.28));
+          c[0] *= ao; c[1] *= ao; c[2] *= ao;
+        }
         g.p.push(i * step, h, j * step); g.n.push(n[0], n[1], n[2]); g.c.push(c[0], c[1], c[2]);
       }
     }
@@ -195,16 +201,22 @@ export class World {
     return this.chunks.has(this._key(ccx, ccz));
   }
 
-  draw(cam, dt) {
+  // shadow pass: pass focus ([x,y,z]) and radius to draw only what can land inside that cascade
+  draw(cam, dt, focus, R) {
     const r = this.r, ex = cam.eye[0], ez = cam.eye[2];
     const f = cam.fwd;
     for (const c of this.chunks.values()) {
+      if (focus) {
+        if (Math.abs(c.cx * CH + CH / 2 - focus[0]) > R + CH * 0.8 || Math.abs(c.cz * CH + CH / 2 - focus[2]) > R + CH * 0.8) continue;
+        r.draw(c.mesh, m4translate(c.cx * CH, 0, c.cz * CH), { terrain: true });
+        continue;
+      }
       const mx = c.cx * CH + CH / 2 - ex, mz = c.cz * CH + CH / 2 - ez;
       const d = Math.hypot(mx, mz);
       if (d > CH * 1.2 && (mx * f[0] + mz * f[2]) / d < -0.35) continue;      // behind the camera
       r.draw(c.mesh, m4translate(c.cx * CH, 0, c.cz * CH), { terrain: true });
     }
-    for (const m of this.props.statics) r.draw(m, m4identity());
+    for (const m of this.props.statics) r.draw(m, m4identity(), { spec: 0.12, shin: 16 });
     // ferris wheel
     const w = this.props.wheel;
     this.wheelAngle += dt * 0.12;
@@ -216,6 +228,6 @@ export class World {
   }
 
   drawWater() {
-    for (const w of this.props.water) this.r.draw(w.mesh, m4identity(), { alpha: w.alpha });
+    for (const w of this.props.water) this.r.draw(w.mesh, m4identity(), { alpha: w.alpha, water: w.fall ? 2 : 1 });
   }
 }
