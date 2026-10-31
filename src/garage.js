@@ -10,6 +10,7 @@ export const CLASSES = [
 ];
 export const COLOURS = [['LIME', [0.52, 0.93, 0.12]], ['ORANGE', [0.98, 0.46, 0.06]], ['RED', [0.88, 0.1, 0.12]], ['BLUE', [0.1, 0.38, 0.95]], ['YELLOW', [0.98, 0.84, 0.08]],
   ['TEAL', [0.05, 0.7, 0.7]], ['PURPLE', [0.55, 0.25, 0.9]], ['PINK', [0.95, 0.35, 0.65]], ['WHITE', [0.92, 0.92, 0.95]], ['BLACK', [0.1, 0.1, 0.12]]];
+export const PLASTIC_STYLES = [['FACTORY', [0.08, 0.08, 0.09]], ['RACE STRIPE', [0.96, 0.96, 0.96]], ['NEON GRAPHIC', [0.95, 0.12, 0.55]], ['CAMO', [0.28, 0.38, 0.18]], ['RETRO', [0.98, 0.62, 0.08]], ['STEALTH', [0.28, 0.3, 0.34]]];
 export const GEAR_COLOURS = [['BLACK', [0.07, 0.08, 0.09]], ['WHITE', [0.9, 0.9, 0.93]], ['RED', [0.8, 0.1, 0.12]], ['BLUE', [0.1, 0.3, 0.85]], ['LIME', [0.45, 0.85, 0.1]], ['ORANGE', [0.95, 0.45, 0.05]], ['PURPLE', [0.5, 0.22, 0.8]], ['TEAL', [0.05, 0.6, 0.62]]];
 export const PLATES = [['WHITE', [0.93, 0.93, 0.95]], ['YELLOW', [0.98, 0.85, 0.1]], ['BLACK', [0.08, 0.08, 0.09]], ['RED', [0.85, 0.12, 0.12]]];
 export const SUSP = [['SOFT', { k: 0.88, c: 0.85 }, 'Plush over chop, more bottoming on big landings'], ['STANDARD', { k: 1, c: 1 }, 'Balanced for everything'], ['STIFF', { k: 1.15, c: 1.2 }, 'Holds up on big jumps, harsher over bumps']];
@@ -22,7 +23,7 @@ export const UPGRADES = [
   { key: 'brakes', name: 'BRAKES', desc: ['Stock brakes', 'Steel braided lines', 'Oversize front disc', 'Works calipers: strongest stopping'], brake: [1, 1.08, 1.17, 1.28], mass: [0, 0.1, 0.3, 0.4] },
   { key: 'weight', name: 'WEIGHT', desc: ['Stock wheels and bars', 'Light bars and levers', 'Carbon guards and subframe', 'Titanium and carbon everywhere'], mass: [0, -2, -4.5, -7] },
 ];
-export const DEFAULT_SETUP = { cls: '250-2t', colour: 0, gear: 0, plate: 0, susp: 1, gearing: 1, tyre: 1, up: { engine: 0, susp: 0, brakes: 0, weight: 0 } };
+export const DEFAULT_SETUP = { cls: '250-2t', colour: 0, style: 0, gear: 0, plate: 0, susp: 1, gearing: 1, tyre: 1, up: { engine: 0, susp: 0, brakes: 0, weight: 0 } };
 export const upgradeLevel = (s, key) => clamp((s.up && s.up[key]) | 0, 0, 3);
 const upMass = (s) => UPGRADES.reduce((a, u) => a + u.mass[upgradeLevel(s, u.key)], 0);
 
@@ -102,7 +103,7 @@ export function initGarage(hooks) {
       row.appendChild(pips); row.appendChild(el('div', 'gn', u.desc[lv])); up.appendChild(row);
     });
     body.appendChild(up);
-    sw(COLOURS, 'colour', body, 'BIKE COLOUR'); sw(GEAR_COLOURS, 'gear', body, 'RIDER GEAR'); sw(PLATES, 'plate', body, 'NUMBER PLATES');
+    sw(COLOURS, 'colour', body, 'BIKE COLOUR'); sw(PLASTIC_STYLES, 'style', body, 'PLASTICS / GRAPHICS KIT'); sw(GEAR_COLOURS, 'gear', body, 'RIDER GEAR'); sw(PLATES, 'plate', body, 'NUMBER PLATES');
     seg(SUSP, 'susp', body, 'SUSPENSION'); seg(GEARING, 'gearing', body, 'GEARING'); seg(TYRES, 'tyre', body, 'TYRES');
     const rs = el('button', 'btn alt', 'RESET TO STOCK'); rs.onclick = () => { Object.assign(setup, DEFAULT_SETUP, { up: { ...DEFAULT_SETUP.up } }); change(); }; body.appendChild(rs);
   }
