@@ -3,7 +3,7 @@ import { Renderer } from './renderer.js';
 import { World } from './scene.js';
 import { initMapSelect } from './mapSelect.js';
 import { Bike, P } from './physics.js';
-import { initGarage, applySetup, classOf, COLOURS, GEAR_COLOURS, PLATES } from './garage.js';
+import { initGarage, applySetup, classOf, COLOURS, GEAR_COLOURS, PLATES, PLASTIC_STYLES } from './garage.js';
 import { createBikeModel, RiderRagdoll } from './bikeModel.js';
 import { Camera, CAM_MODES } from './camera.js';
 import { Input } from './input.js';
@@ -55,7 +55,7 @@ async function boot() {
   const applyGarage = (s) => {
     applySetup(P, s); const c = classOf(s);
     if (model) model.dispose();
-    model = createBikeModel(renderer, { accent: COLOURS[s.colour][1], jersey: GEAR_COLOURS[s.gear][1], plate: PLATES[s.plate][1], four: c.four });
+    model = createBikeModel(renderer, { accent: COLOURS[s.colour][1], jersey: GEAR_COLOURS[s.gear][1], plate: PLATES[s.plate][1], graphic: PLASTIC_STYLES[s.style || 0][1], four: c.four });
     audio.setEngine(c.audio); bikeLine();
   };
   const garage = initGarage({
