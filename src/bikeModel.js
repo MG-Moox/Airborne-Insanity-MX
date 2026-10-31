@@ -64,6 +64,19 @@ function buildBody() {
   g.cyl(0.04, 0.04, 0.34, 9, SILVER, m4mul(m4translate(0.22, 0.24, 0.46), m4rotX(Math.PI / 2 - 0.2)));     // link
   g.cyl(FOUR ? 0.085 : 0.07, FOUR ? 0.075 : 0.06, FOUR ? 0.5 : 0.4, 10, ALU, m4mul(m4translate(0.22, 0.38, FOUR ? 0.7 : 0.72), m4rotX(Math.PI / 2 + 0.1)));   // silencer
   g.cyl(0.062, 0.062, 0.035, 10, BLACK, m4mul(m4translate(0.22, 0.4, 0.92), m4rotX(Math.PI / 2 + 0.1)));
+  // Realistic engine hardware: cooling fins, case seams, fasteners and hoses.
+  for (let i = 0; i < 7; i++) {
+    const y = -0.02 + i * 0.037;
+    g.box(0.27, 0.012, 0.23, ALU, m4mul(m4translate(0, y, -0.13), m4rotX(0.38)));
+  }
+  for (const s of [-1, 1]) {
+    g.cyl(0.012, 0.012, 0.018, 10, SILVER, m4mul(m4translate(s * 0.125, -0.2, 0.06), m4rotZ(Math.PI / 2)));
+    g.cyl(0.012, 0.012, 0.018, 10, SILVER, m4mul(m4translate(s * 0.13, -0.29, 0.17), m4rotZ(Math.PI / 2)));
+    tube(g, [s * 0.12, 0.28, -0.34], [s * 0.13, 0.05, -0.2], 0.012, BLACK);
+    // sculpted airbox vents and layered side-panel graphics
+    for (let k = 0; k < 3; k++) g.box(0.009, 0.018, 0.12, GRAPHIC, m4mul(m4translate(s * 0.193, 0.31 - k * 0.035, 0.42), m4rotZ(-s * 0.12)));
+    g.box(0.014, 0.07, 0.24, GRAPHIC, m4mul(m4translate(s * 0.19, 0.4, 0.55), m4rotZ(-s * 0.18)));
+  }
   // pegs, kick-side lever, chain
   g.box(0.1, 0.02, 0.06, SILVER, m4translate(0.27, -0.29, 0.06));
   g.box(0.1, 0.02, 0.06, SILVER, m4translate(-0.27, -0.29, 0.06));
@@ -109,11 +122,25 @@ function buildWheel(w) {
     g.box(0.14 * w + 0.03, 0.045, 0.07, [0.07, 0.07, 0.075], m4mul(m4rotX(a), m4translate(0, 0.335, 0)));
     g.box(0.1 * w, 0.04, 0.05, [0.07, 0.07, 0.075], m4mul(m4rotX(a + 0.06), m4mul(m4translate(0.045 * w, 0.328, 0), m4rotZ(0.0))));
   }
-  g.torus(0.222, 0.016, 24, 5, [0.12, 0.12, 0.14]);                                             // rim
-  for (let i = 0; i < 10; i++) g.box(0.01, 0.45, 0.01, SILVER, m4rotX((i / 10) * Math.PI));     // spokes
-  g.cyl(0.05, 0.05, 0.16, 10, GOLD, m4rotZ(Math.PI / 2));                                       // hub
-  g.cyl(0.13, 0.13, 0.012, 16, SILVER, m4mul(m4translate(-0.075, 0, 0), m4rotZ(Math.PI / 2)));  // brake disc
-  g.box(0.02, 0.1, 0.03, LIME, m4translate(0.0, 0.21, 0));                                      // rim marker (shows spin)
+  // Machined alloy rim with two lips and crossed stainless spokes.
+  g.torus(0.222, 0.016, 32, 8, [0.16, 0.17, 0.19]);
+  g.torus(0.222, 0.008, 32, 6, SILVER, m4translate(0.025, 0, 0));
+  g.cyl(0.052, 0.052, 0.19, 16, GOLD, m4rotZ(Math.PI / 2));
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 18; i++) {
+      const a = i * Math.PI * 2 / 18, a2 = a + (i % 2 ? 0.42 : -0.42);
+      const hub = [side * 0.075, Math.cos(a) * 0.045, Math.sin(a) * 0.045];
+      const rim = [side * 0.035, Math.cos(a2) * 0.218, Math.sin(a2) * 0.218];
+      tube(g, hub, rim, 0.0035, SILVER);
+    }
+  }
+  g.cyl(0.13, 0.13, 0.014, 24, SILVER, m4mul(m4translate(-0.075, 0, 0), m4rotZ(Math.PI / 2)));
+  // Vent holes in the brake rotor.
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI * 2 / 12;
+    g.cyl(0.009, 0.009, 0.016, 6, BLACK, m4mul(m4translate(-0.085, Math.cos(a) * 0.092, Math.sin(a) * 0.092), m4rotZ(Math.PI / 2)));
+  }
+  g.box(0.02, 0.1, 0.03, LIME, m4translate(0.0, 0.21, 0));
   return g;
 }
 
