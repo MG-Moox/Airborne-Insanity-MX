@@ -5,6 +5,7 @@ import { m4identity, m4mul, m4translate, m4scale, m4rotX, m4rotY, m4rotZ, m4from
 
 const LIME = [0.52, 0.93, 0.12], BLACK = [0.06, 0.06, 0.07], WHITE = [0.93, 0.93, 0.95], GREY = [0.42, 0.44, 0.48],
   DARK = [0.16, 0.17, 0.19], SILVER = [0.74, 0.76, 0.8], ALU = [0.62, 0.64, 0.68], GOLD = [0.86, 0.62, 0.14], RUBBER = [0.04, 0.04, 0.045], SKIN = [0.85, 0.62, 0.48];
+let GRAPHIC = [0.08, 0.08, 0.09];
 const PANTS = [0.9, 0.91, 0.94], JERSEY = [0.07, 0.08, 0.09], BOOT = [0.1, 0.1, 0.11];
 
 const PLATE = [0.93, 0.93, 0.95], NUM = [0.06, 0.06, 0.07];
@@ -46,6 +47,7 @@ function buildBody() {
   mirror((s) => {
     g.box(0.12, 0.34, 0.34, LIME, m4mul(m4translate(s * 0.17, 0.35, -0.4), m4mul(m4rotZ(-s * 0.2), m4rotX(0.0))));
     g.box(0.07, 0.24, 0.5, LIME, m4mul(m4translate(s * 0.17, 0.36, 0.0), m4rotZ(-s * 0.08)));
+    g.box(0.012, 0.12, 0.28, GRAPHIC, m4mul(m4translate(s * 0.211, 0.37, -0.015), m4rotZ(-s * 0.08)));
     g.box(0.07, 0.2, 0.46, LIME, m4mul(m4translate(s * 0.15, 0.37, 0.48), m4rotZ(-s * 0.05)));           // side panels
     g.box(0.075, 0.28, 0.07, BLACK, m4translate(s * 0.215, 0.35, -0.55));                                // radiator guard
     g.box(0.02, 0.19, 0.19, PLATE, m4translate(s * 0.2, 0.39, 0.52));                                    // side number plate
@@ -131,13 +133,23 @@ function unitLimb(col) { return new Geo().cyl(1, 1, 1, 8, col, null, false); }
 
 function buildHelmet() {
   const g = new Geo();
-  g.sphere(0.165, 12, 9, LIME, m4scale(1, 1.05, 1.12));
-  g.box(0.045, 0.02, 0.3, WHITE, m4mul(m4translate(0, 0.16, -0.0), m4rotX(0)));                      // centre stripe
-  g.box(0.25, 0.1, 0.1, BLACK, m4translate(0, -0.015, -0.155));                                       // goggles
-  g.box(0.215, 0.07, 0.03, [0.55, 0.75, 0.9], m4translate(0, -0.015, -0.208));                        // goggle lens
-  g.box(0.3, 0.02, 0.2, BLACK, m4mul(m4translate(0, 0.1, -0.19), m4rotX(0.28)));                      // peak
-  g.box(0.14, 0.1, 0.12, WHITE, m4mul(m4translate(0, -0.1, -0.17), m4rotX(-0.2)));                    // chin bar
-  g.box(0.3, 0.04, 0.2, BLACK, m4translate(0, -0.015, 0.0));                                          // goggle strap
+  g.sphere(0.17, 20, 14, LIME, m4scale(1, 1.08, 1.16));
+  g.sphere(0.145, 16, 10, GRAPHIC, m4mul(m4translate(0, 0.035, 0.015), m4scale(1.01, 0.78, 1.03)));
+  g.box(0.055, 0.018, 0.25, WHITE, m4translate(0, 0.16, 0.005));
+  g.box(0.32, 0.025, 0.23, GRAPHIC, m4mul(m4translate(0, 0.105, -0.205), m4rotX(0.22)));
+  g.box(0.28, 0.012, 0.18, BLACK, m4mul(m4translate(0, 0.09, -0.19), m4rotX(0.22)));
+  for (const s of [-1, 1]) {
+    g.cyl(0.009, 0.009, 0.008, 8, SILVER, m4mul(m4translate(s * 0.12, 0.105, -0.19), m4rotX(Math.PI / 2)));
+    g.box(0.012, 0.035, 0.07, BLACK, m4mul(m4translate(s * 0.158, 0.015, 0.015), m4rotZ(s * 0.18)));
+    g.box(0.012, 0.018, 0.055, WHITE, m4translate(s * 0.158, -0.045, 0.055));
+  }
+  g.box(0.275, 0.105, 0.055, BLACK, m4translate(0, -0.005, -0.16));
+  g.box(0.226, 0.061, 0.018, [0.28, 0.68, 0.82], m4translate(0, -0.005, -0.192));
+  g.box(0.045, 0.065, 0.022, [0.12, 0.18, 0.22], m4translate(0, -0.01, -0.204));
+  g.box(0.31, 0.042, 0.19, GRAPHIC, m4translate(0, -0.005, 0.005));
+  g.box(0.19, 0.105, 0.13, WHITE, m4mul(m4translate(0, -0.105, -0.14), m4rotX(-0.16)));
+  g.box(0.11, 0.025, 0.018, BLACK, m4translate(0, -0.09, -0.214));
+  g.box(0.055, 0.045, 0.018, SILVER, m4translate(0, -0.105, -0.222));
   return g;
 }
 function buildBoot() { const g = new Geo(); g.box(0.12, 0.11, 0.3, BOOT, m4translate(0, -0.035, -0.07)); g.box(0.125, 0.03, 0.12, LIME, m4translate(0, 0.02, -0.12)); return g; }
@@ -205,7 +217,7 @@ export function createBikeModel(rr, opts) {
   const made = [];
   const r = { makeMesh: (g) => { const m = rr.makeMesh(g); made.push(m); return m; }, draw: (m, mat, op) => rr.draw(m, mat, { spec: 0.42, shin: 44, ...op }) };
   const set = (dst, src) => { dst[0] = src[0]; dst[1] = src[1]; dst[2] = src[2]; };
-  set(LIME, o.accent || [0.52, 0.93, 0.12]); set(JERSEY, o.jersey || [0.07, 0.08, 0.09]); set(PLATE, o.plate || [0.93, 0.93, 0.95]);
+  set(LIME, o.accent || [0.52, 0.93, 0.12]); set(JERSEY, o.jersey || [0.07, 0.08, 0.09]); set(PLATE, o.plate || [0.93, 0.93, 0.95]); set(GRAPHIC, o.graphic || [0.08, 0.08, 0.09]);
   set(NUM, PLATE[0] * 0.3 + PLATE[1] * 0.6 + PLATE[2] * 0.1 > 0.45 ? [0.06, 0.06, 0.07] : [0.95, 0.95, 0.97]); FOUR = !!o.four;
   const body = r.makeMesh(buildBody()), front = r.makeMesh(buildFrontEnd()), wheelF = r.makeMesh(buildWheel(1.0)), wheelR = r.makeMesh(buildWheel(1.5)), fender = r.makeMesh(buildFender());
   const helmet = r.makeMesh(buildHelmet()), boot = r.makeMesh(buildBoot()), chest = r.makeMesh(buildChest()), hip = r.makeMesh(buildHip());
