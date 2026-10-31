@@ -150,7 +150,7 @@ export class Bike {
     const aLim = clamp(P.MU * (this.wheels[0].grip || 0.9) * G * 0.8, 3.5, 8.5);
     const maxSteer = Math.min(0.62, Math.atan(WHEELBASE * aLim / (vAbs * vAbs)));
     const tgt = inp.steer * maxSteer;
-    const rate = ((Math.abs(tgt) > Math.abs(this.steer) ? 2.6 : 4.5) / (1 + vAbs / 11)) * dt;   // bars move slower at speed
+    const rate = ((Math.abs(tgt) > Math.abs(this.steer) ? 4.2 : 6.0) / (1 + vAbs / 18)) * dt;   // responsive at low speed, calmer at high speed
     this.steer += clamp(tgt - this.steer, -rate, rate);
 
     let F = [0, -P.M * G, 0];
@@ -218,7 +218,9 @@ export class Bike {
       }
       Fx = clamp(Fx, -Fmax, Fmax);
       const FyLim = Math.max(Math.sqrt(Math.max(0, Fmax * Fmax - Fx * Fx)), P.LATMIN * Fmax);
-      let Fy = -FyLim * Math.tanh(vs / (P.CS * Math.abs(vl) + P.CS0));
+      // Smooth slip-angle response: progressive near centre, saturating at available grip.
+      const slipAngle = Math.atan2(vs, Math.max(1.0, Math.abs(vl)));
+      let Fy = -FyLim * Math.tanh(slipAngle / (P.CS + P.CS0 / Math.max(1, Math.abs(vl))));
       const FyStab = P.MEFF * Math.abs(vs) / dt;
       if (Math.abs(Fy) > FyStab) Fy = Math.sign(Fy) * FyStab;
       W.slip = Math.abs(vs);
@@ -236,8 +238,10 @@ export class Bike {
     // instead of feeling like the bars turn but the bike carries straight on.
     if (!crashed && (this.wheels[0].grounded || this.wheels[1].grounded)) {
       const yawRate = dot(this.w, up);
-      const targetYawRate = vF * Math.tan(this.steer) / WHEELBASE;
-      const yawTorque = clamp((targetYawRate - yawRate) * P.I[1] * 1.8, -650, 650);
+      // Positive steer points the front wheel toward +X, which is negative yaw
+      // in this coordinate system (forward is -Z).
+      const targetYawRate = -vF * Math.tan(this.steer) / WHEELBASE;
+      const yawTorque = clamp((targetYawRate - yawRate) * P.I[1] * 1.15, -420, 420);
       T = add(T, mul(up, yawTorque));
     }
 
