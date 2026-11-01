@@ -1,5 +1,6 @@
-// renderer.js - WebGL2 renderer: linear HDR lighting, cascaded sun shadow maps, MSAA, bloom + ACES tone mapping,
-// animated water, procedural sky and particles. Uses a floating origin (everything is drawn relative to the camera).
+// renderer.js - WebGL2 renderer: linear HDR lighting, cascaded sun shadow maps (soft Vogel PCF), MSAA, bloom + god rays,
+// ACES tone mapping, sharpening, colour grading, animated water, procedural sky (two cloud layers) and particles.
+// Uses a floating origin (everything is drawn relative to the camera).
 import { m4perspective, m4lookAt, m4mul, m4translate } from './mathgl.js';
 
 // ---------------------------------------------------------------------------------------------- shaders
@@ -27,22 +28,26 @@ uniform float uWater; uniform float uTime; uniform float uSpec; uniform float uS
 uniform sampler2DShadow uSh0; uniform sampler2DShadow uSh1; uniform mat4 uShM0; uniform mat4 uShM1;
 uniform int uShN; uniform vec2 uShTex; uniform vec2 uShInv;
 uniform vec3 uHorizon; uniform vec3 uZenith;
+uniform float uEyeY; uniform int uPcfN;
 out vec4 o;
 ${NOISE}
 const vec3 SUN_COL = vec3(1.0, 0.86, 0.66) * 3.3;
 const vec3 SKY_AMB = vec3(0.30, 0.45, 0.78) * 0.95;
 const vec3 GND_AMB = vec3(0.22, 0.17, 0.10) * 0.55;
 
+// soft shadow filter: Vogel disk, rotated per pixel, each tap is already a hardware bilinear compare
 float pcf(sampler2DShadow s, vec3 c, float inv, float rot){
-  float ca = cos(rot), sa = sin(rot);
-  vec2 d0 = vec2(ca, sa) * 1.2 * inv, d1 = vec2(-sa, ca) * 1.2 * inv;
   float z = c.z;
-  float a = texture(s, vec3(c.xy, z));
-  a += texture(s, vec3(c.xy + d0, z));
-  a += texture(s, vec3(c.xy - d0, z));
-  a += texture(s, vec3(c.xy + d1, z));
-  a += texture(s, vec3(c.xy - d1, z));
-  return a * 0.2;
+  int N = max(uPcfN, 1);
+  float fn = float(N);
+  float a = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= N) break;
+    float r = sqrt((float(i) + 0.5) / fn) * 1.7 * inv;
+    float th = float(i) * 2.39996323 + rot;
+    a += texture(s, vec3(c.xy + vec2(cos(th), sin(th)) * r, z));
+  }
+  return a / fn;
 }
 float shadowAt(vec3 rel, vec3 n){
   if (uShN == 0) return 1.0;
@@ -91,7 +96,7 @@ void main(){
       vec3 R = reflect(-V, wn); R.y = abs(R.y);
       vec3 deep = pow(vec3(0.05, 0.28, 0.36), vec3(2.2));
       vec3 c = mix(deep, skyCol(R), fr);
-      float sparkle = pow(max(dot(R, uSun), 0.0), 220.0) * 8.0 * (0.6 + 0.8*vn(wp*3.0 + t));
+      float sparkle = pow(max(dot(R, uSun), 0.0), 220.0) * 10.0 * (0.6 + 0.8*vn(wp*3.0 + t));
       c += vec3(1.0, 0.85, 0.6) * sparkle;
       float f = clamp((dist - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
       c = mix(c, uFogColor, f*f*(3.0-2.0*f));
@@ -120,10 +125,15 @@ void main(){
     col *= mix(1.0 + (blades-0.5)*0.5*f2*a3, 1.0 + (pebbles*0.5 - 0.15)*0.35*f2 + (blades-0.5)*0.35*f2*a3, dirt);
     col = mix(col, col*vec3(1.18,1.05,0.7), smoothstep(0.45,0.75,patchN)*(1.0-dirt)*f3);
     col = mix(col, col*vec3(0.75,1.0,0.82), smoothstep(0.4,0.15,patchN)*(1.0-dirt)*f3);
+    // steep slopes turn to bare rock
+    float slope = 1.0 - clamp(normalize(vNrm).y, 0.0, 1.0);
+    float rock = smoothstep(0.30, 0.55, slope) * (1.0 - dirt) * 0.75;
+    vec3 rockC = vec3(0.26, 0.23, 0.20) * (0.65 + 0.8*vn(wp*0.35) + 0.4*vn(wp*1.7)*f1);
+    col = mix(col, rockC, rock);
     float e = 0.3, b0 = vn(wp*1.9)*0.6 + vn(wp*6.3)*0.4*a2;
     float bx = vn((wp+vec2(e,0.0))*1.9)*0.6 + vn((wp+vec2(e,0.0))*6.3)*0.4*a2;
     float bz = vn((wp+vec2(0.0,e))*1.9)*0.6 + vn((wp+vec2(0.0,e))*6.3)*0.4*a2;
-    n = normalize(n + vec3(b0-bx, 0.0, b0-bz) * (0.9 + 1.4*dirt) * f2 * a1);
+    n = normalize(n + vec3(b0-bx, 0.0, b0-bz) * (0.9 + 1.4*dirt + 1.2*rock) * f2 * a1);
   }
   float ndl = max(dot(n, uSun), 0.0);
   float sh = ndl > 0.0 ? shadowAt(vRel, normalize(vNrm)) : 1.0;
@@ -136,9 +146,12 @@ void main(){
     float rim = pow(clamp(1.0 - dot(n, V), 0.0, 1.0), 4.0) * uSpec * 0.6;
     lit += SUN_COL * sp * 0.35 + SKY_AMB * rim * (0.4 + 0.6*hemi);
   }
-  // atmosphere: distance fog with warm in-scatter toward the sun
+  // atmosphere: distance fog + low-lying height haze, with warm in-scatter toward the sun
   float f = clamp((dist - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
   f = f*f*(3.0-2.0*f);
+  float wy = vRel.y + uEyeY;
+  float hf = exp(-max(wy, 0.0) * 0.004);
+  f = clamp(f + (1.0 - exp(-dist * 0.0018)) * 0.30 * hf, 0.0, 1.0);
   float sd = max(dot(-V, uSun), 0.0);
   vec3 fogC = uFogColor + vec3(1.0, 0.75, 0.5) * pow(sd, 5.0) * 0.55;
   vec3 c = mix(lit, fogC, f);
@@ -174,9 +187,15 @@ void main(){
   float t = clamp(dir.y, 0.0, 1.0);
   vec3 col = mix(uHorizon, uZenith, pow(t, 0.5));
   float sd = max(dot(dir, uSun), 0.0);
+  col = mix(col, uHorizon * 1.05, pow(1.0 - t, 5.0) * 0.35);                                          // hazy horizon band
   col = mix(col, uHorizon * 1.15 + vec3(0.25,0.12,0.0), pow(sd, 3.0) * (1.0 - t) * 0.5);          // warm horizon glow towards the sun
   col += vec3(1.0,0.8,0.55) * (pow(sd, 6.0)*0.35 + pow(sd, 64.0)*0.8 + smoothstep(0.9993, 0.9998, sd)*28.0);
   if (dir.y > 0.01) {
+    // high thin cirrus streaks
+    vec2 p2 = dir.xz / (dir.y + 0.35) * vec2(0.7, 2.1) + vec2(uTime*0.006, uTime*0.002);
+    float ci = smoothstep(0.52, 0.92, fbm(p2)) * 0.38 * smoothstep(0.03, 0.28, dir.y);
+    col = mix(col, vec3(1.25, 1.2, 1.15) + vec3(1.0, 0.7, 0.4) * pow(sd, 6.0) * 0.5, ci);
+    // main cumulus layer
     vec2 p = dir.xz / (dir.y + 0.16) * 1.5 + vec2(uTime*0.012, 0.0);
     float d = fbm(p);
     float c = smoothstep(0.5, 0.78, d);
@@ -243,9 +262,11 @@ const COMP_FS = `#version 300 es
 precision highp float;
 in vec2 vUv; uniform sampler2D uScene; uniform sampler2D uB1; uniform sampler2D uB2;
 uniform float uSpeed; uniform float uTime; uniform float uBloom; uniform float uExposure; uniform vec2 uRes;
+uniform vec2 uSunUV; uniform float uShafts; uniform float uSharp; uniform float uCA;
 out vec4 o;
 float h21(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }
+vec3 sc(vec2 uv){ return texture(uScene, uv).rgb; }
 void main(){
   vec2 d = vUv - 0.5;
   float r2 = dot(d, d);
@@ -254,18 +275,39 @@ void main(){
     c = vec3(0.0);
     for (int i = 0; i < 7; i++) c += texture(uScene, vUv - d * (float(i) / 6.0) * uSpeed * (0.2 + r2 * 3.0)).rgb;
     c /= 7.0;
-  } else c = texture(uScene, vUv).rgb;
+  } else {
+    vec2 px = 1.0 / uRes;
+    vec2 ca = d * (0.0010 + 0.0030 * r2) * uCA;              // subtle lens chromatic aberration toward the edges
+    vec3 m = sc(vUv);
+    c = vec3(sc(vUv + ca).r, m.g, sc(vUv - ca).b);
+    if (uSharp > 0.0) {                                      // contrast-limited sharpen (crisper textures, esp. at low render scale)
+      vec3 avg = (sc(vUv + vec2(px.x, 0.0)) + sc(vUv - vec2(px.x, 0.0)) + sc(vUv + vec2(0.0, px.y)) + sc(vUv - vec2(0.0, px.y))) * 0.25;
+      c += clamp(m - avg, vec3(-0.5), vec3(0.5)) * uSharp;
+      c = max(c, vec3(0.0));
+    }
+  }
   c = min(max(c, vec3(0.0)), vec3(48.0)); if (!(c.r == c.r && c.g == c.g && c.b == c.b)) c = vec3(0.0);
   if (uBloom > 0.0) { vec3 bl = (texture(uB1, vUv).rgb * 0.65 + texture(uB2, vUv).rgb * 0.9) * uBloom; bl = min(max(bl, vec3(0.0)), vec3(6.0)); if (bl.r == bl.r && bl.g == bl.g && bl.b == bl.b) c += bl; }
+  if (uShafts > 0.0) {                                       // god rays: march the blurred bright buffer toward the sun
+    vec2 sd = (uSunUV - vUv) * 0.55;
+    float jit = h21(gl_FragCoord.xy + uTime);
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < 14; i++) {
+      float t = (float(i) + jit) / 14.0;
+      acc += texture(uB1, vUv + sd * t).rgb * (1.0 - t);
+    }
+    acc = min(acc / 14.0, vec3(4.0));
+    if (acc.r == acc.r && acc.g == acc.g && acc.b == acc.b) c += acc * uShafts * vec3(1.0, 0.86, 0.66);
+  }
   c *= uExposure;
   c = aces(c);
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = mix(vec3(l), c, 1.12);                                  // saturation
+  c = mix(vec3(l), c, 1.14);                                  // saturation
+  c *= mix(vec3(0.96, 1.0, 1.05), vec3(1.05, 1.0, 0.94), smoothstep(0.2, 0.8, l));   // cool shadows, warm highlights
   c = pow(c, vec3(1.0/2.2));
-  c = mix(c, c*c*(3.0-2.0*c), 0.28);                          // gentle S-curve contrast
+  c = mix(c, c*c*(3.0-2.0*c), 0.30);                          // gentle S-curve contrast
   c *= mix(1.0, 1.0 - 0.55*smoothstep(0.1, 0.45, r2), 0.9);   // vignette
-  c *= vec3(1.02, 1.0, 0.97);                                 // slight warm grade
-  c += (h21(gl_FragCoord.xy + uTime) - 0.5) / 120.0;          // dither, hides banding in the sky
+  c += (h21(gl_FragCoord.xy + uTime) - 0.5) / 120.0;          // dither + fine grain, hides banding in the sky
   o = vec4(c, 1.0);
 }`;
 
@@ -292,11 +334,12 @@ export const HORIZON = [0.74, 0.84, 0.92];
 export const ZENITH = [0.2, 0.42, 0.8];
 const lin = (c) => c.map((x) => Math.pow(x, 2.2));
 
-// quality presets: render scale, MSAA samples, shadow cascades [{size, radius}], bloom
+// quality presets: render scale, MSAA samples, shadow cascades [{size, radius}], bloom, soft-shadow taps,
+// sharpen strength, chromatic aberration, god-ray strength, bloom amount
 const PRESETS = [
-  { scale: 0.75, msaa: 0, cascades: [], bloom: false },
-  { scale: 1, msaa: 4, cascades: [{ size: 2048, radius: 75 }], bloom: true },
-  { scale: 1, msaa: 4, cascades: [{ size: 4096, radius: 24 }, { size: 2048, radius: 110 }], bloom: true },
+  { scale: 0.75, msaa: 0, cascades: [], bloom: false, pcf: 1, sharp: 0.30, ca: 0, shafts: 0, bloomAmt: 0 },
+  { scale: 1, msaa: 4, cascades: [{ size: 2048, radius: 75 }], bloom: true, pcf: 6, sharp: 0.20, ca: 0.6, shafts: 0.30, bloomAmt: 0.36 },
+  { scale: 1, msaa: 4, cascades: [{ size: 4096, radius: 24 }, { size: 2048, radius: 110 }], bloom: true, pcf: 12, sharp: 0.30, ca: 1.0, shafts: 0.45, bloomAmt: 0.42 },
 ];
 
 export class Renderer {
@@ -536,6 +579,8 @@ export class Renderer {
     gl.uniform3fv(m.uSun, SUN); gl.uniform3fv(m.uFogColor, hz);
     gl.uniform3fv(m.uHorizon, hz); gl.uniform3fv(m.uZenith, zn);
     gl.uniform2fv(m.uFog, this.fogRange); gl.uniform1f(m.uTime, time);
+    gl.uniform1f(m.uEyeY, cam.eye[1]);
+    gl.uniform1i(m.uPcfN, Math.max(1, Math.min(16, this.preset.pcf | 0)));
     // shadows
     const n = this.shadowsOn ? this.sh.length : 0;
     gl.uniform1i(m.uShN, n);
@@ -624,6 +669,19 @@ export class Renderer {
       pass(bp, t.b2b, t.b2a.tex, () => { gl.uniform1f(bu.uMode, 2); gl.uniform2f(bu.uDir, 1, 0); gl.uniform2f(bu.uTexel, 1 / t.b2a.w, 1 / t.b2a.h); });
       pass(bp, t.b2a, t.b2b.tex, () => { gl.uniform1f(bu.uMode, 2); gl.uniform2f(bu.uDir, 0, 1); gl.uniform2f(bu.uTexel, 1 / t.b2a.w, 1 / t.b2a.h); });
     }
+    // where is the sun on screen? (direction vector, so w = 0 in the projection)
+    let sunU = 0.5, sunV = 0.5, shafts = 0;
+    if (P.bloom && P.shafts > 0 && this.vp) {
+      const v = this.vp;
+      const sx = v[0] * SUN[0] + v[4] * SUN[1] + v[8] * SUN[2];
+      const sy = v[1] * SUN[0] + v[5] * SUN[1] + v[9] * SUN[2];
+      const sw = v[3] * SUN[0] + v[7] * SUN[1] + v[11] * SUN[2];
+      if (sw > 0.05) {
+        sunU = (sx / sw) * 0.5 + 0.5; sunV = (sy / sw) * 0.5 + 0.5;
+        const fade = Math.max(0, Math.min(1, 1.6 - Math.hypot(sunU - 0.5, sunV - 0.5) * 1.5));
+        shafts = P.shafts * fade * (1 - (opts.speed || 0) * 0.5);
+      }
+    }
     const cu = this.comp.u;
     gl.useProgram(this.comp.p);
     gl.uniform1i(cu.uScene, 0); gl.uniform1i(cu.uB1, 1); gl.uniform1i(cu.uB2, 2);
@@ -631,7 +689,10 @@ export class Renderer {
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, t.b2a.tex);
     pass(this.comp, null, t.res.tex, () => {
       gl.uniform1f(cu.uSpeed, opts.speed || 0); gl.uniform1f(cu.uTime, this.time % 100);
-      gl.uniform1f(cu.uBloom, P.bloom ? 0.32 : 0); gl.uniform1f(cu.uExposure, this.hdr ? 0.82 : 0.9);
+      gl.uniform1f(cu.uBloom, P.bloom ? P.bloomAmt : 0); gl.uniform1f(cu.uExposure, this.hdr ? 0.82 : 0.9);
+      gl.uniform2f(cu.uRes, t.w, t.h);
+      gl.uniform2f(cu.uSunUV, sunU, sunV); gl.uniform1f(cu.uShafts, shafts);
+      gl.uniform1f(cu.uSharp, P.sharp || 0); gl.uniform1f(cu.uCA, P.ca || 0);
     });
     gl.activeTexture(gl.TEXTURE0);
     gl.bindVertexArray(null);
