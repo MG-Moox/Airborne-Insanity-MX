@@ -129,24 +129,26 @@ export const MX_LAYOUTS = {
   },
   physics: {
     name: 'MX PRACTICE PARK',
-    blurb: 'Natural motocross practice layout: linked berms, tight bowl turns, S-bends, tabletops, doubles, step-ups and rhythm whoops.',
-    // Compact, winding dirt-bike layout inspired by real outdoor practice tracks.
-    // The route snakes back through the infield instead of following a car-racing perimeter.
+    blurb: 'Compact motocross maze packed with linked berms, hairpins and rhythm jumps. No long straights.',
+    // Tight, continuously changing direction: a practice track, not a race circuit.
     pts: [
-      [-235, 175], [-165, 188], [-105, 178], [-65, 145], [-58, 100],
-      [-88, 65], [-150, 52], [-205, 35], [-225, -5], [-205, -48],
-      [-155, -68], [-90, -62], [-35, -42], [25, -48], [78, -78],
-      [95, -125], [68, -165], [15, -180], [-55, -172], [-125, -155],
-      [-190, -170], [-240, -142], [-255, -95], [-242, -48], [-275, -8],
-      [-300, 42], [-292, 100], [-265, 145]
+      [-150, 125], [-112, 145], [-78, 132], [-62, 105], [-78, 82],
+      [-118, 72], [-145, 48], [-137, 20], [-105, 8], [-70, 18],
+      [-38, 38], [-8, 28], [8, 2], [-5, -22], [-35, -35],
+      [-72, -28], [-100, -48], [-92, -78], [-62, -92], [-28, -78],
+      [0, -55], [28, -68], [45, -96], [32, -122], [5, -137],
+      [-25, -128], [-48, -108], [-78, -112], [-105, -135], [-135, -125],
+      [-158, -98], [-145, -70], [-120, -55], [-130, -25], [-158, -5],
+      [-180, 25], [-172, 58], [-150, 82], [-175, 105]
     ],
     jumps: [
-      [0.035, 1.8, 6], [0.105, 2.8, 10], [0.18, 2.2, 0],
-      [0.255, 3.0, 9], [0.335, 2.0, 0], [0.415, 3.4, 12],
-      [0.50, 2.4, 7], [0.59, 3.0, 10], [0.68, 2.0, 0],
-      [0.765, 3.6, 13], [0.85, 2.5, 7], [0.94, 2.0, 0]
+      [0.025, 1.8, 5], [0.085, 2.4, 7], [0.15, 2.0, 0],
+      [0.22, 2.8, 8], [0.29, 2.0, 0], [0.36, 2.6, 7],
+      [0.43, 2.1, 0], [0.50, 3.0, 9], [0.57, 2.0, 0],
+      [0.64, 2.7, 8], [0.71, 2.0, 0], [0.78, 3.0, 9],
+      [0.86, 2.1, 0], [0.94, 2.5, 7]
     ],
-    whoops: [[0.215, 62], [0.365, 76], [0.535, 58], [0.705, 68], [0.895, 54]],
+    whoops: [[0.19, 42], [0.40, 46], [0.60, 42], [0.82, 46]],
   },
 };
 const MX_PADDOCK = [-430, 235, -150, 350], MX_FIELD = [160, 240, 440, 360];
@@ -179,12 +181,12 @@ function buildMx(layoutId) {
   const jumps = [], jumpS = [];
   let lastS = -999;
   for (const [t, H, T] of LY.jumps) {
-    const s = poly.snap(t * L, 0.035 * L);
+    const s = layoutId === 'physics' ? t * L : poly.snap(t * L, 0.035 * L);
     if (jumpS.some((q) => Math.abs(q - s) < 70)) continue;
     const p = poly.at(s); jumps.push([p.x, p.z, norm360(p.hd), H, T]); jumpS.push(s); lastS = s;
   }
   const whoops = [];
-  for (const [t, len] of LY.whoops) { const s = poly.snap(t * L, 0.03 * L); whoops.push([s - len / 2, s + len / 2]); }
+  for (const [t, len] of LY.whoops) { const s = layoutId === 'physics' ? t * L : poly.snap(t * L, 0.03 * L); whoops.push([s - len / 2, s + len / 2]); }
   for (const j of MX_FIELD_JUMPS) jumps.push(j.slice());
   const whoopH = (s) => {
     let h = 0;
