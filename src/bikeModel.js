@@ -306,7 +306,7 @@ export function createBikeModel(rr, opts) {
       const M = m4fromQuat(bike.q, bike.pos);
       r.draw(body, M);
       const steer = bike.steer * 0.9;
-      const S = m4mul(m4translate(...HEAD), m4mul(m4rotY(steer), m4translate(-HEAD[0], -HEAD[1], -HEAD[2])));
+      const S = m4mul(m4translate(...HEAD), m4mul(m4rotY(-steer), m4translate(-HEAD[0], -HEAD[1], -HEAD[2])));
       const MF = m4mul(M, S);
       r.draw(front, m4mul(MF, m4translate(...HEAD)));
       const wf = bike.wheels[0], wr = bike.wheels[1];
