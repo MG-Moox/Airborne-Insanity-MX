@@ -312,12 +312,10 @@ export class Bike {
       if (pitch > 0.6 && inp.pitch <= 0) pitchT -= (pitch - 0.6) * 2600;
       if (pitch < -0.5 && inp.pitch >= 0) pitchT += (-0.5 - pitch) * 2600;
     }
-    // in the air with no pitch input the rider keeps the bike pointing along its flight path, so landings are wheels-first
-    if (!grounded && !crashed && this.air.on && Math.abs(inp.pitch) < 0.1) {
-      const hv = Math.hypot(this.v[0], this.v[2]);
-      if (hv > 3) pitchT += clamp((Math.atan2(this.v[1], hv) - pitch) * 450, -350, 350);
+    // Rider mass shift on the ground; in the air the rider controls attitude directly below.
+    if (grounded && !crashed) {
+      T = add(T, mul(right, pitchT - 120 * wRight));
     }
-    T = add(T, mul(right, pitchT - (grounded ? 120 : 35) * wRight));
     // Yaw damping is supplied by tyre slip forces; do not add a hidden angular-rate brake.
 
     if (!crashed) {
@@ -340,12 +338,15 @@ export class Bike {
         T = add(T, mul(fwd, tq));
         this.roll = roll;
       } else {
-        // in the air the rider squares the bike up for landing unless you are deliberately leaning / whipping
-        const wup = [0, 1, 0], upProj = norm(sub(wup, mul(fwd, dot(fwd, wup))));
-        const rollA = Math.atan2(-dot(upProj, right), dot(upProj, up));
-        const level = Math.abs(inp.roll) < 0.15 && this.air.on ? clamp(-1500 * rollA, -1100, 1100) : 0;
-        T = add(T, mul(fwd, inp.roll * 700 - 70 * dot(this.w, fwd) + level));
-        T = add(T, mul(up, inp.yaw * 350 - 25 * dot(this.w, up)));
+        // Airborne attitude: rider body acts as a controllable mass-shift / aerodynamic
+        // control system. No auto-level or flight-path servo: angular momentum persists.
+        // Pitch (lean forward/back), roll (Q/E or stick X), and yaw (steer) are independent.
+        const pitchCmd = clamp(inp.pitch || 0, -1, 1);
+        const rollCmd = clamp(inp.roll || 0, -1, 1);
+        const yawCmd = clamp(inp.yaw || 0, -1, 1) + sIn * 0.72;
+        T = add(T, mul(right, pitchCmd * 1850 - 16 * wRight));
+        T = add(T, mul(fwd, rollCmd * 1450 - 12 * dot(this.w, fwd)));
+        T = add(T, mul(up, yawCmd * 1050 - 10 * dot(this.w, up)));
       }
     }
 
