@@ -16,9 +16,20 @@ import * as T from './terrain.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
 const params = new URLSearchParams(location.search);
 const DT = 1 / 240;
 const ACCENTS = [[0.9, 0.2, 0.2], [0.2, 0.5, 0.95], [0.98, 0.6, 0.1], [0.7, 0.3, 0.9], [0.95, 0.95, 0.95]];
+
+// Cinematic camera shots: each one is a slow move (dist / pitch ease from [start, end], yaw drifts at yawRate rad/s).
+const SHOTS = [
+  { dist: [10.5, 6.2], pitch: [0.20, 0.30], yawRate: 0.16 },    // slow push-in
+  { dist: [5.2, 5.6], pitch: [0.07, 0.10], yawRate: -0.22 },    // low hero orbit
+  { dist: [14, 9.5], pitch: [0.52, 0.36], yawRate: 0.10 },      // high drone pull-back
+  { dist: [3.8, 6.8], pitch: [0.13, 0.19], yawRate: 0.32 },     // fast whip-around
+  { dist: [7.5, 7.5], pitch: [0.03, 0.12], yawRate: -0.12 },    // ground-level sweep
+  { dist: [8, 3.6], pitch: [0.34, 0.12], yawRate: -0.18 },      // swoop down
+];
 
 function fail(msg) { $('loadtxt').textContent = 'Could not start the game'; $('loaderr').textContent = msg; $('bar').classList.add('hide'); console.error(msg); }
 
@@ -128,6 +139,51 @@ async function boot() {
   $('restart').onclick = () => { togglePause(); doTeleport(0); };
   $('mute').onclick = () => { const m = audio.mute(); $('mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; };
 
+  // ------------------------------------------------------------ cinematic director
+  // Used for the start-menu backdrop and for the in-game CINEMATIC mode (letterbox bars, no HUD, auto-cut shots).
+  const dir = { i: 0, t: 0, dur: 6.5, cutT: -1 };
+  const cine = { on: false, prevMode: 0 };
+  const flash = () => { const f = $('cinefade'); if (!f) return; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); };
+  function directorUpdate(dt) {
+    if (dir.cutT >= 0) {
+      dir.cutT -= dt;
+      if (dir.cutT < 0) {
+        dir.i = (dir.i + 1 + Math.floor(Math.random() * (SHOTS.length - 1))) % SHOTS.length;   // never the same shot twice
+        dir.t = 0; dir.dur = 5.5 + Math.random() * 3;
+        camera.orbitYaw += (Math.random() - 0.5) * 2.6;
+      }
+    } else {
+      dir.t += dt;
+      if (dir.t > dir.dur) { dir.cutT = 0.22; flash(); }
+    }
+    const s = SHOTS[dir.i], u = clamp(dir.t / dir.dur, 0, 1), k = u * u * (3 - 2 * u);
+    camera.orbitDist = lerp(s.dist[0], s.dist[1], k);
+    camera.orbitPitch = lerp(s.pitch[0], s.pitch[1], k);
+    camera.orbitYaw += s.yawRate * dt;
+  }
+  function toggleCine(force) {
+    if (!running) return;
+    const want = force === undefined ? !cine.on : !!force;
+    if (want === cine.on) return;
+    cine.on = want;
+    document.body.classList.toggle('cine', want);
+    $('cineexit').classList.toggle('hide', !want);
+    if (want) {
+      if (paused) { paused = false; $('pause').classList.add('hide'); last = performance.now(); }
+      hud.toggleMap(false); hud.show(false);
+      cine.prevMode = camera.mode; camera.setMode(3); dir.t = 0; dir.cutT = -1; flash();
+    } else {
+      hud.show(true); camera.setMode(cine.prevMode); flash();
+    }
+  }
+  $('cinebtn').onclick = () => toggleCine(true);
+  $('cineexit').onclick = () => toggleCine(false);
+  addEventListener('keydown', (e) => {
+    if (!running) return;
+    if (e.code === 'KeyV' && !e.repeat) toggleCine();
+    else if (cine.on && e.code === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); toggleCine(false); }
+  }, true);
+
   for (const host of ['qrow', 'pq']) {
     const el = $(host);
     ['LOW', 'HIGH', 'ULTRA'].forEach((n, q) => { const b = document.createElement('button'); b.className = 'btn alt qbtn'; b.dataset.q = q; b.textContent = n; b.onclick = () => applyQuality(q); el.appendChild(b); });
@@ -234,7 +290,8 @@ async function boot() {
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
     const rdt = dt;
     if (paused) dt = 0;
-    if (garageOpen || !running) camera.orbitYaw += rdt * (garageOpen ? 0.35 : 0.18);
+    if (garageOpen) camera.orbitYaw += rdt * 0.35;
+    else if (!running || cine.on) directorUpdate(rdt);        // cinematic shots on the menu and in CINEMATIC mode
     controls.setActive(running && !paused);
     if (hud.mapOpen && (!running || paused)) hud.redrawMap({ x: bike.pos[0], z: bike.pos[2], yaw: bike.yaw, ais: [] });
     input.speed = Math.hypot(bike.v[0], bike.v[2]);
@@ -315,7 +372,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // handy for debugging / automated tests
-  window.__mx = { P, garage, bike, camera, world, race, T, hud, input, renderer, startRace, doTeleport, lapTimer, setPaused: (v) => { paused = v; }, get running() { return running; } };
+  window.__mx = { P, garage, bike, camera, world, race, T, hud, input, renderer, startRace, doTeleport, lapTimer, toggleCine, setPaused: (v) => { paused = v; }, get running() { return running; } };
   window.__mxReady = true;
 }
 
