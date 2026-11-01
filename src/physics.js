@@ -1,5 +1,12 @@
 // physics.js - 6-DOF dirt bike: rigid body + raycast spring/damper suspension + tyre friction model.
 // Local body axes: +x right, +y up, +z back (forward = -z). Angles in radians.
+//
+// Handling model (MX Bikes / MX vs ATV style):
+//  * the rider LEANS first and the bike follows - at speed the turn comes from lean angle (yaw rate = g*tan(lean)/v),
+//    at walking pace it comes from bar steering geometry, and the two blend smoothly in between
+//  * steering lock shrinks with speed so the bars can never "snap" the bike round at 100 km/h
+//  * rider inputs (joystick / keys) are low-pass filtered, so a twitchy thumb can't flick the bike
+//  * throttle is progressive, in the air the rider keeps the bike pointing along its flight path so you land on the wheels
 import { heightAt, normalAt, nearbyColliders, waterLevelAt, gripAt, borderSD } from './terrain.js';
 
 const G = 9.81;
@@ -16,6 +23,15 @@ export const P = {
   MEFF: 50,
   LATMIN: 0.34,              // a locked / spinning tyre still keeps this share of its grip sideways (stops violent spin-outs)
   CS: 0.09, CS0: 0.12,       // tyre cornering softness: lateral force saturates at a slip angle of ~CS rad (lower = stiffer)
+  // --- handling tuning ---
+  LEAN_LOW: 0.18,            // max lean (rad) at crawling speed
+  LEAN_HIGH: 0.70,           // max lean (rad, ~40 deg) at speed
+  LEAN_SPEED: [3, 18],       // speed range (m/s) over which max lean grows
+  LOCK_MAX: 0.62,            // front wheel lock at standstill
+  LOCK_V: 7,                 // speed (m/s) where lock has dropped to about half
+  INPUT_SMOOTH: 9,           // rider input filter (higher = more direct)
+  YAW_GAIN: 8.0, YAW_CAP: 1000,
+  CRASH_V: 8.5,              // tree impact speed (m/s) that causes a wipeout
 };
 const WHEELBASE = 1.42;
 const MOUNTS = [{ y: 0.05, z: -0.70 }, { y: 0.05, z: 0.72 }];   // 0 = front, 1 = rear
@@ -39,6 +55,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const norm = (a) => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const smooth01 = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
 export function qrot(q, v) {
   const x = q[0], y = q[1], z = q[2], w = q[3];
@@ -93,6 +110,9 @@ export class Bike {
     this.v = [0, 0, 0];
     this.w = [0, 0, 0];
     this.steer = 0;
+    this.steerIn = 0;          // filtered rider steering input
+    this.thr = 0;              // filtered throttle
+    this.roll = 0; this.tgtRoll = 0;
     this.state = 'ok';
     this.crashT = 0;
     this.headHit = 0;
@@ -141,16 +161,24 @@ export class Bike {
     const crashed = this.state === 'crashed';
     if (crashed) inp = { throttle: 0, brakeF: 0, brakeR: 0, steer: 0, pitch: 0, roll: 0, yaw: 0 };
 
+    // ---- rider input filtering: kills thumb-twitch and makes throttle progressive
+    const kIn = Math.min(1, dt * P.INPUT_SMOOTH);
+    this.steerIn += (clamp(inp.steer || 0, -1, 1) - this.steerIn) * kIn;
+    const thrWant = clamp(inp.throttle || 0, 0, 1);
+    this.thr += clamp(thrWant - this.thr, -6 * dt, 3.5 * dt);
+    const sIn = this.steerIn, thr = this.thr;
+
     const vF = dot(this.v, fwd);
     this.speed = vF;
-
-    // steering angle (front wheel). Lock is limited to what the front tyre can actually grip at this speed
-    // (lateral accel = v^2 tan(steer) / wheelbase), so a full-lock input is "as hard as the dirt allows" rather than a spin-out.
     const vAbs = Math.max(Math.abs(vF), 0.5);
+
+    // steering angle (front wheel). Lock shrinks quickly with speed (a bike turns by leaning, not by flinging the bars),
+    // and never exceeds what the front tyre can grip (lateral accel = v^2 tan(steer) / wheelbase).
     const aLim = clamp(P.MU * (this.wheels[0].grip || 0.9) * G * 0.8, 3.5, 8.5);
-    const maxSteer = Math.min(0.62, Math.atan(WHEELBASE * aLim / (vAbs * vAbs)));
-    const tgt = inp.steer * maxSteer;
-    const rate = ((Math.abs(tgt) > Math.abs(this.steer) ? 4.2 : 6.0) / (1 + vAbs / 18)) * dt;   // responsive at low speed, calmer at high speed
+    const lockV = P.LOCK_MAX / (1 + Math.pow(vAbs / P.LOCK_V, 1.6));
+    const maxSteer = Math.min(lockV, Math.atan(WHEELBASE * aLim / (vAbs * vAbs)));
+    const tgt = sIn * maxSteer;
+    const rate = ((Math.abs(tgt) > Math.abs(this.steer) ? 3.2 : 5.0) / (1 + vAbs / 14)) * dt;   // quick when slow, calm when fast
     this.steer += clamp(tgt - this.steer, -rate, rate);
 
     let F = [0, -P.M * G, 0];
@@ -167,7 +195,7 @@ export class Bike {
         W.grounded = false; W.contact = null; W.load = 0;
         W.L += (P.LMAX - W.L) * Math.min(1, dt * 10);
         W.omega *= 1 - Math.min(1, dt * (front ? 0.3 : 0.6));
-        if (!front) W.omega += inp.throttle * 40 * dt;
+        if (!front) W.omega += thr * 40 * dt;
         if (inp.brakeR > 0 && !front) W.omega *= 1 - Math.min(1, dt * 8);
         if (inp.brakeF > 0 && front) W.omega *= 1 - Math.min(1, dt * 8);
         W.spin += W.omega * dt;
@@ -201,8 +229,8 @@ export class Bike {
       if (!front) {
         const vpos = Math.max(0, vl);
         const fe = Math.min(P.FE_MAX, P.POWER / Math.max(vpos, 1.0)) * Math.max(0, 1 - Math.pow(vpos / P.VTOP, 6));
-        Fx += inp.throttle * fe;
-        if (inp.throttle * fe > Fmax * 0.98) spinning = true;
+        Fx += thr * fe;
+        if (thr * fe > Fmax * 0.98) spinning = true;
         if (inp.brakeF > 0.3 && inp.throttle === 0 && vF < 0.6 && vl > -2.5) Fx -= 450;   // reverse
       }
       Fx -= P.CRR * Fs * Math.tanh(vl * 3);
@@ -229,19 +257,22 @@ export class Bike {
       F = add(F, Fc);
       T = add(T, cross(r, Fc));
 
-      W.omega = locked ? 0 : (vl / P.R + (spinning ? 25 * inp.throttle : 0));
+      W.omega = locked ? 0 : (vl / P.R + (spinning ? 25 * thr : 0));
       W.spin += W.omega * dt;
     }
+    this.slide += ((this.wheels[1].grounded ? this.wheels[1].slip : 0) - this.slide) * Math.min(1, dt * 8);
 
-    // Chassis yaw response: the front tyre still supplies the physical cornering force,
-    // while this damped steering moment makes the frame follow the steered front wheel
-    // instead of feeling like the bars turn but the bike carries straight on.
+    // Chassis yaw response. The tyres supply the real cornering force; this damped moment makes the frame follow the
+    // way a real bike does: at low speed it follows the bar angle (steering geometry), at speed it follows the LEAN angle
+    // (yaw rate = g * tan(lean) / v), and the two blend smoothly. It is a first-order lag, so there is no instant snap.
     if (!crashed && (this.wheels[0].grounded || this.wheels[1].grounded)) {
       const yawRate = dot(this.w, up);
-      // Positive steer points the front wheel toward +X, which is negative yaw
-      // in this coordinate system (forward is -Z).
-      const targetYawRate = -vF * Math.tan(this.steer) / WHEELBASE;
-      const yawTorque = clamp((targetYawRate - yawRate) * P.I[1] * 1.15, -420, 420);
+      const vA2 = Math.abs(vF);
+      const kin = -vF * Math.tan(this.steer) / WHEELBASE;                                   // positive steer = right turn = negative yaw
+      const leanYaw = -Math.sign(vF) * G * Math.tan(clamp(this.roll || 0, -0.9, 0.9)) / Math.max(vA2, 2.5);
+      const wL = smooth01((vA2 - 4) / 8);
+      const targetYawRate = kin * (1 - wL) + leanYaw * wL;
+      const yawTorque = clamp((targetYawRate - yawRate) * P.I[1] * P.YAW_GAIN, -P.YAW_CAP, P.YAW_CAP);
       T = add(T, mul(up, yawTorque));
     }
 
@@ -292,6 +323,11 @@ export class Bike {
       if (pitch > 0.6 && inp.pitch <= 0) pitchT -= (pitch - 0.6) * 2600;
       if (pitch < -0.5 && inp.pitch >= 0) pitchT += (-0.5 - pitch) * 2600;
     }
+    // in the air with no pitch input the rider keeps the bike pointing along its flight path, so landings are wheels-first
+    if (!grounded && !crashed && this.air.on && Math.abs(inp.pitch) < 0.1) {
+      const hv = Math.hypot(this.v[0], this.v[2]);
+      if (hv > 3) pitchT += clamp((Math.atan2(this.v[1], hv) - pitch) * 450, -350, 350);
+    }
     T = add(T, mul(right, pitchT - (grounded ? 120 : 35) * wRight));
     if (grounded && !crashed) T = add(T, mul(up, -110 * dot(this.w, up)));       // gyro / tyre scrub: a spinning bike settles instead of whirling
 
@@ -300,11 +336,16 @@ export class Bike {
         const wup = [0, 1, 0];
         const upProj = norm(sub(wup, mul(fwd, dot(fwd, wup))));
         const roll = Math.atan2(-dot(upProj, right), dot(upProj, up));
-        // lean target is feed-forward from the commanded turn (v^2 tan(steer) / wheelbase), not from the measured yaw rate:
-        // using the measured yaw made lean -> yaw -> more lean a runaway that flung the bike around.
-        const ayCmd = (vF * vF * Math.tan(this.steer)) / WHEELBASE;
-        const rawT = clamp(Math.atan(ayCmd / G) * 0.85 + inp.roll * 0.2, -0.7, 0.7);
-        this.tgtRoll = (this.tgtRoll || 0) + (rawT - (this.tgtRoll || 0)) * Math.min(1, dt * 7);   // riders lean in smoothly
+        // The rider leans INTO the turn. The lean you can reach grows with speed (a crawling bike stays nearly upright,
+        // a fast one lays right over), and it is eased in so cornering builds progressively instead of snapping.
+        const vA3 = Math.abs(vF);
+        const leanMax = P.LEAN_LOW + (P.LEAN_HIGH - P.LEAN_LOW) * smooth01((vA3 - P.LEAN_SPEED[0]) / (P.LEAN_SPEED[1] - P.LEAN_SPEED[0]));
+        // at low speed the turn comes from the bars, so the rider also leans INTO the measured cornering force (otherwise the bike
+        // would flop outward); this fades out as speed rises and the lean itself becomes what steers the bike
+        const aLat = clamp(-vF * dot(this.w, up), -10, 10);
+        const wLow = 1 - smooth01((vA3 - 4) / 8);
+        const rawT = clamp(sIn * leanMax + Math.atan(aLat / G) * 0.6 * wLow + (inp.roll || 0) * 0.2, -0.72, 0.72);
+        this.tgtRoll += (rawT - this.tgtRoll) * Math.min(1, dt * 6);
         const wRoll = dot(this.w, fwd);
         const tq = clamp(2700 * (this.tgtRoll - roll) - 430 * wRoll, -2200, 2200);
         T = add(T, mul(fwd, tq));
@@ -343,14 +384,14 @@ export class Bike {
     for (const t of trees) {
       const dx = this.pos[0] - t.x, dz = this.pos[2] - t.z;
       const d = Math.hypot(dx, dz) || 1e-3;
-      const lim = t.r + 0.5;
+      const lim = t.r + 0.45;
       if (d < lim && this.pos[1] < t.y + t.h) {
         const nx = dx / d, nz = dz / d;
         const vn = this.v[0] * nx + this.v[2] * nz;
         if (vn < 0) {
           this.v[0] -= nx * vn * 1.15; this.v[2] -= nz * vn * 1.15;
-          this.w[1] += (Math.random() - 0.5) * 2;
-          if (-vn > 6 && this.state === 'ok') this._crash(t.kind === undefined ? 'Smashed into a building!' : 'Hit a tree!');
+          this.w[1] += (Math.random() - 0.5) * 0.8;
+          if (-vn > P.CRASH_V && this.state === 'ok') this._crash(t.kind === undefined ? 'Smashed into a building!' : 'Hit a tree!');
         }
         this.pos[0] += nx * (lim - d); this.pos[2] += nz * (lim - d);
       }
