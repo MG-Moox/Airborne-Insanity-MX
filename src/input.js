@@ -160,6 +160,6 @@ export class Input {
     this._ramp('pitch', pitch, dt, 6 * r, 8 * r);
     this._ramp('roll', roll, dt, 6 * r, 8 * r);
     const a = this.axis;
-    return { throttle: a.throttle, brakeF: a.brakeF, brakeR: a.brakeR, steer: a.steer, pitch: a.pitch, roll: a.roll || a.steer * 0.6, yaw: a.steer * 0.8 };
+    return { throttle: a.throttle, brakeF: a.brakeF, brakeR: a.brakeR, steer: a.steer, pitch: a.pitch, roll: a.roll, yaw: 0 };
   }
 }
