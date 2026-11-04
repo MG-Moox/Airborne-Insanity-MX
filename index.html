@@ -89,6 +89,7 @@
   .eyebrow { font-size: 11px; letter-spacing: 4px; color: var(--mute); margin-bottom: 10px; }
   .eyebrow .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); margin-right: 10px; box-shadow: 0 0 10px var(--lime); animation: blink 1.6s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
+  .wipnotice { margin: 12px 0 10px; padding: 10px 12px; border: 1px solid rgba(255,180,65,.5); border-left: 4px solid #ffb441; border-radius: 8px; background: rgba(255,180,65,.10); color: #ffd18a; font-size: 11px; font-weight: 900; line-height: 1.5; letter-spacing: 1px; }
   .menu .bikeline { display: inline-block; margin: 14px 0 12px; padding: 5px 12px; font-weight: 800; letter-spacing: 2px; color: var(--lime); font-size: 12px; background: rgba(168,255,69,.1); border: 1px solid rgba(168,255,69,.35); border-radius: 999px; text-transform: uppercase; }
   .mbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 16px; }
   .mbtns .btn, .mbtns .go { margin: 0; }
@@ -226,6 +227,7 @@
 <div id="start" class="overlay hide"><div class="card glass menu">
   <div class="eyebrow"><span class="dot"></span>OPEN-WORLD MOTOCROSS SIMULATOR</div>
   <h1>AIRBORNE<span class="l">INSANITY MX</span></h1>
+  <div class="wipnotice">THIS GAME IS A WIP — THE PHYSICS ARE CURRENTLY BROKEN AND BEING WORKED ON.</div>
   <div class="bikeline" id="bikeline"></div>
   <div class="mbtns">
     <button class="go big" id="go"><span>&#9654;</span>FREE RIDE</button>
